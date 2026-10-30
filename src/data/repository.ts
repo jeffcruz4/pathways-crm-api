@@ -3,6 +3,7 @@ import type { Partner, PartnerListItem } from "../domain/partner.js";
 import type { Pipeline } from "../domain/deal.js";
 import type { ConvoListItem, ConversationDetail } from "../domain/conversation.js";
 import type { CalendarWeek, Digest } from "../domain/calendar.js";
+import type { Home } from "../domain/home.js";
 
 /**
  * The data access seam. A memory implementation serves seeded sample data now;
@@ -10,6 +11,9 @@ import type { CalendarWeek, Digest } from "../domain/calendar.js";
  * Read-only for the first milestone.
  */
 export interface Repository {
+  // Home (today)
+  getHome(): Promise<Home>;
+
   // Customers
   listCustomers(): Promise<CustomerListItem[]>;
   getCustomer(id: string): Promise<Customer | undefined>;

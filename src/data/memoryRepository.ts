@@ -8,6 +8,10 @@ import type { PartnerListItem } from "../domain/partner.js";
  * wired (DATA_BACKEND=memory, the default). Read-only.
  */
 export class MemoryRepository implements Repository {
+  async getHome() {
+    return seed.home;
+  }
+
   async listCustomers(): Promise<CustomerListItem[]> {
     return seed.customers.map((c) => ({
       id: c.id,

@@ -2,6 +2,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
 import type { AppConfig } from "./config.js";
 import { createRepository } from "./data/index.js";
+import { homeRoutes } from "./routes/home.js";
 import { customerRoutes } from "./routes/customers.js";
 import { partnerRoutes } from "./routes/partners.js";
 import { pipelineRoutes } from "./routes/pipeline.js";
@@ -32,6 +33,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
 
   // Resource routes under /api/v1.
   const apiPrefix = "/api/v1";
+  await app.register(homeRoutes(repo), { prefix: apiPrefix });
   await app.register(customerRoutes(repo), { prefix: apiPrefix });
   await app.register(partnerRoutes(repo), { prefix: apiPrefix });
   await app.register(pipelineRoutes(repo), { prefix: apiPrefix });
