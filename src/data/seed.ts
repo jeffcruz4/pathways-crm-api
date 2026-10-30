@@ -275,3 +275,91 @@ export const digest: Digest = {
     { time: "4:00 PM", name: "Beth Carney", detail: "Biweekly · Woolwich", status: "" },
   ],
 };
+
+import type { Home } from "../domain/home.js";
+
+export const home: Home = {
+  greeting: {
+    date: "TUESDAY, SEPTEMBER 22",
+    title: "Good morning, Joe",
+    needCount: 5,
+    handledCount: 31,
+    doneToday: 1,
+    totalToday: 6,
+  },
+  tasks: [
+    {
+      id: "missed-call",
+      eyebrow: "MISSED CALL",
+      eyebrowTone: "danger",
+      icon: "phone-missed",
+      title: "New caller · (856) 555-0187",
+      subtitle: "Cori texted them back at 8:14 AM. No reply yet.",
+      primaryAction: "Call back",
+      primaryIcon: "phone",
+    },
+    {
+      id: "promised-call",
+      eyebrow: "YOU PROMISED A CALL",
+      eyebrowTone: "violet",
+      icon: "clock",
+      title: "Rachel Owens — move-out clean",
+      subtitle: "She asked for a call this morning once she knew her closing date.",
+      primaryAction: "Call Rachel",
+      primaryIcon: "phone",
+    },
+    {
+      id: "quote-waiting",
+      eyebrow: "QUOTE WAITING",
+      eyebrowTone: "danger",
+      icon: "doc",
+      title: "The Porters — biweekly cleaning",
+      subtitle: "Viewed twice, no reply in 6 days.",
+      primaryAction: "Looks good — send",
+      primaryIcon: "check",
+      expandable: true,
+      draft: {
+        label: "Cori will text Kim Porter",
+        meta: "Written in your style · signed by you",
+        body:
+          "\u201CHi Kim! Just checking in on the biweekly cleaning quote we sent last week. Happy to answer any questions or adjust the schedule — would a Thursday start work for you? — Joe, Corvia Cleaning\u201D",
+      },
+    },
+    {
+      id: "unanswered-text",
+      eyebrow: "UNANSWERED TEXT",
+      eyebrowTone: "info",
+      icon: "chat",
+      title: "Linda Ferraro",
+      subtitle: "\u201CCan you do the inside of the fridge too?\u201D",
+      primaryAction: "Review reply",
+    },
+    {
+      id: "new-lead",
+      eyebrow: "NEW LEAD",
+      eyebrowTone: "success",
+      icon: "users",
+      title: "Tom Becker — first deep clean",
+      subtitle: "4 bed / 3 bath, 2 dogs, wants biweekly. Thursday 1:00 PM is open.",
+      primaryAction: "Book Thursday",
+    },
+  ],
+  handledForYou: {
+    total: 31,
+    items: [
+      { icon: "phone", label: "Calls & texts logged", count: 14 },
+      { icon: "users", label: "New contacts created", count: 6 },
+      { icon: "board", label: "Deals moved forward", count: 4 },
+      { icon: "clock", label: "Follow-ups scheduled", count: 7 },
+    ],
+  },
+  thisWeek: {
+    openQuotes: { value: "$2,515", caption: "6 waiting on a yes" },
+    newLeads: { value: "9", caption: "4 booked so far" },
+  },
+  todaysCleans: [
+    { time: "9:00 AM", name: "Gloria Hynes", detail: "Standard clean · Swedesboro", status: "Done" },
+    { time: "1:30 PM", name: "Sam Ortiz", detail: "Walkthrough · Mullica Hill", status: "Next" },
+    { time: "4:00 PM", name: "Beth Carney", detail: "Biweekly · Woolwich", status: "" },
+  ],
+};
