@@ -1,0 +1,18 @@
+# Copy to terraform.tfvars and fill in your network. Non-secret; the DB password
+# is RDS-managed in Secrets Manager (never set here).
+
+# region      = "us-east-1"
+# name_prefix = "pathways-dev"
+
+# Required: a VPC with >= 2 private subnets across AZs.
+# vpc_id     = "vpc-xxxxxxxx"
+# subnet_ids = ["subnet-aaaa", "subnet-bbbb"]
+
+# Once the API's ECS service exists, add its task security group here so only
+# the API can reach Postgres:
+# allowed_security_group_ids = ["sg-apptaskxxxx"]
+
+# Dev sizing (defaults shown):
+# instance_class      = "db.t4g.micro"
+# multi_az            = false
+# deletion_protection = false

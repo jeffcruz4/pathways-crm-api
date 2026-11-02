@@ -10,14 +10,19 @@ network and before Cognito is wired.
 JWT (signature via JWKS, `iss`/`aud`/`exp`), and a per-tenant scope check. The
 UI already sends a bearer token via `@pathways/auth`.
 
-## TD-2 · HIGH · Serving in-memory seed data, not Postgres
-**State:** `DATA_BACKEND=memory` serves `src/data/seed.ts`. The Drizzle schema
-(`src/db/schema.ts`) is authored but there is no Postgres repository, migrations
-run, or RDS instance.
-**Fix:** implement a `PostgresRepository` (Drizzle) satisfying `Repository`,
-generate + run migrations (`pnpm db:generate`), load the seed into RDS, and flip
-`DATA_BACKEND=postgres`. RDS can be the shared `corvia-dev` Postgres (new DB/
-schema) or a dedicated instance.
+## TD-2 · PARTIALLY RESOLVED · Postgres path built; RDS not yet applied
+**Done:** `PostgresRepository` (Drizzle) implements `Repository`; `db:generate`
+emits migrations, `db:migrate`/`db:seed` run them; `DATA_BACKEND=postgres` wires
+it via `DATABASE_URL`. Proven end-to-end against local Docker Postgres
+(`/healthz` reports `backend: postgres`). Terraform for a **dedicated RDS
+instance** lives in `infra/terraform` (validated).
+**Remaining:**
+- Apply the RDS Terraform (needs a VPC + 2 private subnets supplied as vars),
+  then run `db:migrate`/`db:seed` against it and flip the service to postgres.
+- Some non-tabular aggregations (Home, Daily Digest, and the pipeline/calendar
+  *summary* headers, conversation list previews, the conversation's linked-
+  customer snapshot) are still served from the seed constants inside
+  `PostgresRepository`. Model/compute these from tables in a later pass.
 
 ## TD-3 · MED · Response validation not enforced at the boundary
 **State:** domain Zod schemas exist but handlers return repository objects
@@ -36,11 +41,15 @@ writable via the API yet.
 **Fix:** add POST/PATCH endpoints with validation + auth once the data store is
 real. Honor the product's "AI proposes, deterministic code disposes" rule.
 
-## TD-6 · LOW · No deploy infra in this repo
-**State:** Dockerfile only. No ECR/ECS/ALB Terraform or CI.
-**Fix:** mirror the UI repo's `infra/terraform` (ECR + web-style service module
-on the shared cluster, `pathways-api-*` prefix, isolated state key) + CI
-(fmt/validate, build-and-push, approval-gated deploy).
+## TD-6 · MED · Deploy infra: RDS done; compute (ECR/ECS/ALB) + CI still needed
+**State:** `infra/terraform` now provisions the dedicated RDS instance. There is
+no ECR repo, ECS service, ALB, or CI for the API service itself yet (Dockerfile
+exists).
+**Fix:** add an ECR repo + a Fargate service module (mirroring the UI repo's
+`web` module) + ALB, in a new CRM VPC (or the RDS VPC), wire the task SG into
+the RDS module's `allowed_security_group_ids`, and add CI (fmt/validate,
+build-and-push, approval-gated deploy). Also stand up the VPC the RDS env
+currently takes as inputs.
 
 ## TD-7 · LOW · No tests
 **State:** none. The repository + route handlers are the highest-value targets.
