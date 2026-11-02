@@ -29,3 +29,6 @@ drizzle/meta/_journal.tmp
 *.tfstate.*
 .terraform/
 terraform.tfvars
+
+# Local stack runtime artifacts (scripts/run-local-stack.sh)
+.local/
