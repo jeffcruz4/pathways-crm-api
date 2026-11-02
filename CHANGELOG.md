@@ -21,7 +21,10 @@ newest first. PR numbers reference `jeffcruz4/pathways-crm-api`.
 - **Dedicated RDS Terraform** (`infra/terraform`): an `rds` module (subnet
   group, DB security group, `db.t4g.micro` single-AZ Postgres 16 with gp3 +
   storage autoscaling, RDS-managed master secret) and a `dev` environment that
-  takes VPC/subnets as inputs. `fmt`/`validate` clean.
+  **reuses the existing corvia VPC + private subnets** (discovered by tag; no
+  network inputs required to apply) and reuses the shared state bucket under a
+  `pathways-api/` key. Defaults to allowing the VPC CIDR so the first
+  migrate/seed works. `fmt`/`validate` clean.
 - Infra README with the apply + migrate/seed + connect runbook; `.env.example`
   Postgres examples.
 

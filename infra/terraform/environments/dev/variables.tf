@@ -18,31 +18,28 @@ variable "name_prefix" {
   default = "pathways-dev"
 }
 
-# ── Network ──
-# The dedicated CRM stack needs a VPC with >= 2 private subnets across AZs.
-# Provide an existing VPC/subnets here (e.g. a new CRM VPC or the account's
-# default VPC). Keeping this as inputs avoids baking a heavy VPC module before
-# the networking decision is made.
-variable "vpc_id" {
-  type        = string
-  description = "VPC ID to place RDS in."
+# Name prefix of the EXISTING stack whose VPC + private subnets we reuse
+# (corvia-digital-services names them "corvia-dev-*"). Discovered by tag, not by
+# reading that stack's Terraform state.
+variable "base_name_prefix" {
+  type    = string
+  default = "corvia-dev"
 }
 
-variable "subnet_ids" {
-  type        = list(string)
-  description = "Private subnet IDs (>= 2 AZs) for the DB subnet group."
-}
-
+# ── Network access to Postgres ──
+# Prefer SG-based access: once the API's ECS task security group exists, add it
+# here and re-apply so only the API can reach the DB.
 variable "allowed_security_group_ids" {
-  type        = list(string)
-  default     = []
-  description = "App security groups allowed to reach Postgres (the API's ECS task SG)."
+  type    = list(string)
+  default = []
 }
 
+# Optional CIDRs allowed to reach Postgres. When empty (default), the stack
+# allows the discovered corvia VPC's own CIDR, so in-VPC hosts can reach the DB
+# out of the box. Set explicitly to override/tighten.
 variable "allowed_cidr_blocks" {
-  type        = list(string)
-  default     = []
-  description = "Optional CIDRs allowed to reach Postgres (e.g. a bastion); prefer SG rules."
+  type    = list(string)
+  default = []
 }
 
 # ── Sizing ──

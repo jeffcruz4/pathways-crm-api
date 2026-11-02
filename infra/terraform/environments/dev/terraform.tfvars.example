@@ -1,15 +1,16 @@
-# Copy to terraform.tfvars and fill in your network. Non-secret; the DB password
-# is RDS-managed in Secrets Manager (never set here).
+# No overrides are REQUIRED. The stack reuses the existing corvia VPC + private
+# subnets (discovered by tag) and, by default, allows that VPC's CIDR to reach
+# Postgres so the first migrate/seed works out of the box. The DB password is
+# RDS-managed in Secrets Manager — never set here.
 
-# region      = "us-east-1"
-# name_prefix = "pathways-dev"
+# region           = "us-east-1"
+# name_prefix      = "pathways-dev"
+# base_name_prefix = "corvia-dev"   # the stack whose VPC/subnets we reuse
 
-# Required: a VPC with >= 2 private subnets across AZs.
-# vpc_id     = "vpc-xxxxxxxx"
-# subnet_ids = ["subnet-aaaa", "subnet-bbbb"]
-
-# Once the API's ECS service exists, add its task security group here so only
-# the API can reach Postgres:
+# Once the API's ECS task SG exists, restrict access to it. Note: the VPC-CIDR
+# default only applies when allowed_cidr_blocks is empty, so to rely solely on
+# the SG you must set allowed_cidr_blocks to a non-VPC value (or keep the VPC
+# CIDR if in-VPC access is still fine).
 # allowed_security_group_ids = ["sg-apptaskxxxx"]
 
 # Dev sizing (defaults shown):

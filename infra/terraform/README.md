@@ -1,7 +1,8 @@
 # Pathways CRM API — Infrastructure (Terraform)
 
-Provisions a **dedicated RDS PostgreSQL** instance for the CRM API, independent
-of any other stack. Low-cost dev defaults: single-AZ, `db.t4g.micro`, 20 GB with
+Provisions a **dedicated RDS PostgreSQL** instance for the CRM API that **reuses
+the existing corvia VPC + private subnets** (it does not stand up new
+networking). Low-cost dev defaults: single-AZ, `db.t4g.micro`, 20 GB with
 storage autoscaling, 7-day backups. The master password is **RDS-managed in
 Secrets Manager** — it never appears in Terraform state or code.
 
@@ -9,28 +10,32 @@ Secrets Manager** — it never appears in Terraform state or code.
 
 | Module | Resources |
 |---|---|
-| `modules/rds` | DB subnet group, a DB security group (Postgres :5432 from allowed app SGs only), and the `pathways-dev-postgres` instance with the master secret in Secrets Manager |
+| `modules/rds` | DB subnet group, a DB security group, and the `pathways-dev-postgres` instance with the master secret in Secrets Manager |
 
-Networking (VPC + private subnets) is **supplied as variables**, not created
-here — so this stack drops into a new CRM VPC or an existing one without baking
-a VPC module before that decision is made.
+The RDS instance is fully isolated under the `pathways-dev` prefix. It only
+**borrows the network**: the `dev` environment discovers the corvia VPC (tag
+`Name=corvia-dev-vpc`) and its private subnets (tag `tier=private`) via AWS data
+sources — it never reads the corvia stack's Terraform state.
 
 ## Prerequisites
 
-- A VPC with **≥ 2 private subnets across AZs** (RDS subnet groups require it).
-- An S3 state bucket + DynamoDB lock table (fill in `backend.tf`), or run
-  locally without a backend for a first apply.
-- Apply from an identity with RDS/EC2/Secrets Manager permissions.
+- The corvia VPC + private subnets exist (from `corvia-digital-services`). The
+  state bucket (`corvia-tfstate-038462763287`) + lock table (`corvia-tf-locks`)
+  are reused via `backend.tf` under a separate `pathways-api/` key.
+- Apply from an identity with RDS/EC2/Secrets Manager/S3 (state) permissions.
 
-## Apply (first time)
+## Apply (zero required inputs)
 
 ```sh
 cd infra/terraform/environments/dev
-cp terraform.tfvars.example terraform.tfvars   # fill in vpc_id + subnet_ids
-terraform init                                  # (uncomment backend.tf first for remote state)
-terraform plan
+terraform init
+terraform plan        # review: 1 RDS instance + subnet group + SG
 terraform apply
 ```
+
+No `terraform.tfvars` is needed — the VPC/subnets are discovered, and by default
+the DB allows the corvia VPC's own CIDR so the first migrate/seed works. Tighten
+to the API's task SG later (see `terraform.tfvars.example`).
 
 Outputs: `db_endpoint`, `db_port`, `db_name`, `db_security_group_id`,
 `master_secret_arn`.
@@ -76,7 +81,6 @@ curl http://localhost:8081/healthz   # -> "backend":"postgres"
 
 ## Not included yet (follow-ups)
 
-- VPC/subnets (supplied as inputs for now).
-- The API's ECS service + ALB (deploy infra) — add alongside, then wire its task
-  SG into `allowed_security_group_ids`.
+- The API's ECS service + ALB (deploy infra) — add alongside, then set
+  `allowed_security_group_ids` to its task SG and re-apply.
 - Secret rotation cadence and a read-replica for prod.
