@@ -1,0 +1,28 @@
+# Local dev Postgres for the Pathways CRM API. Mirrors the RDS path so the API
+# runs against a real Postgres without needing VPC access to the dev RDS.
+#
+#   docker compose -f docker-compose.dev.yml up -d
+#   pnpm db:migrate && pnpm db:seed      # uses the DB_* env below
+#   pnpm dev:pg                          # API on :8081, backend=postgres
+#
+# The DB_* values below match pnpm dev:pg and the db:* scripts.
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: pathways-pg
+    environment:
+      POSTGRES_USER: pathways
+      POSTGRES_PASSWORD: pathways
+      POSTGRES_DB: pathways
+    ports:
+      - "5433:5432"
+    volumes:
+      - pathways-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pathways"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pathways-pg-data:

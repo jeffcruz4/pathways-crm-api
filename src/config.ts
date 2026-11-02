@@ -14,11 +14,24 @@ const ConfigSchema = z.object({
   HOST: z.string().default("0.0.0.0"),
   /**
    * Data backend. "memory" serves seeded sample data (default while RDS is not
-   * wired); "postgres" uses DATABASE_URL via Drizzle.
+   * wired); "postgres" connects via Drizzle, using either the discrete DB_*
+   * parts below (preferred) or DATABASE_URL.
    */
   DATA_BACKEND: z.enum(["memory", "postgres"]).default("memory"),
-  /** Postgres connection string (required only when DATA_BACKEND=postgres). */
+  /**
+   * Postgres connection string. One of DATABASE_URL or DB_HOST is required when
+   * DATA_BACKEND=postgres. Prefer the discrete DB_* parts for RDS, since an
+   * RDS-managed password with URL-significant characters doesn't need encoding.
+   */
   DATABASE_URL: z.string().optional(),
+  /** Discrete Postgres connection parts (preferred over DATABASE_URL). */
+  DB_HOST: z.string().optional(),
+  DB_PORT: z.coerce.number().optional(),
+  DB_NAME: z.string().optional(),
+  DB_USER: z.string().optional(),
+  DB_PASSWORD: z.string().optional(),
+  /** sslmode-equivalent: disable | require | verify-ca | verify-full. */
+  DB_SSLMODE: z.string().optional(),
   /**
    * Comma-separated list of allowed CORS origins for the browser UI. Defaults
    * to the local dev origin.
@@ -42,8 +55,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   }
   const c = parsed.data;
 
-  if (c.DATA_BACKEND === "postgres" && !c.DATABASE_URL) {
-    throw new Error("DATA_BACKEND=postgres requires DATABASE_URL to be set");
+  if (c.DATA_BACKEND === "postgres" && !c.DATABASE_URL && !c.DB_HOST) {
+    throw new Error(
+      "DATA_BACKEND=postgres requires either DB_HOST (+ DB_USER/DB_PASSWORD/DB_NAME/DB_PORT) or DATABASE_URL",
+    );
   }
 
   return {
