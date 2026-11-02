@@ -105,11 +105,15 @@ credentials, because the role `deploy.yml` authenticates with doesn't exist yet.
 
 ## Migrate the database (turnkey)
 
-The migrator is the **same API image** run with a different command. Its task
-definition assembles `DATABASE_URL` at start from the RDS-managed secret
-(injected as `DB_USER`/`DB_PASSWORD`) plus the non-secret host/port/db, then runs
-`migrate`, `seed`, or `migrate+seed` based on the `MIGRATE_CMD` env. No password
-ever lives in the task definition, state, or CI.
+The migrator is the **same API image** run with a different command. The task
+definition injects the RDS-managed credentials as discrete env vars
+(`DB_USER`/`DB_PASSWORD` from the secret, plus non-secret
+`DB_HOST`/`DB_PORT`/`DB_NAME`/`DB_SSLMODE`); the migrate/seed scripts connect
+from those parts directly (postgres-js options object) rather than building a
+`DATABASE_URL` — so an RDS-managed password with URL-significant characters
+(`?`, `:`, `@`, `]`, `$`) works without percent-encoding. It runs `migrate`,
+`seed`, or `migrate+seed` based on the `MIGRATE_CMD` env. No password ever lives
+in the task definition, state, or CI.
 
 First, build and push the image so the migrator has something to run:
 

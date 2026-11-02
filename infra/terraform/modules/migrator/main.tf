@@ -90,13 +90,15 @@ resource "aws_ecs_task_definition" "migrator" {
       name      = local.container_name
       image     = var.image
       essential = true
-      # Build DATABASE_URL from injected creds + non-secret parts, then run the
-      # command passed as MIGRATE_CMD (default "migrate"). Overridable per run
-      # via containerOverrides (environment MIGRATE_CMD=seed | migrate+seed).
+      # The migrate/seed scripts connect from the discrete DB_* env vars below
+      # (see createDbFromEnv) — no DATABASE_URL is assembled, so an RDS-managed
+      # password with URL-significant characters (?, :, @, ], $) is passed
+      # as-is to the driver instead of being percent-encoded into a URL. Runs
+      # the command passed as MIGRATE_CMD (default "migrate"); overridable per
+      # run via containerOverrides (environment MIGRATE_CMD=seed | migrate+seed).
       entryPoint = ["/bin/sh", "-c"]
       command = [
         join(" ", [
-          "export DATABASE_URL=\"postgres://$DB_USER:$DB_PASSWORD@$DB_HOST:$DB_PORT/$DB_NAME?sslmode=require\";",
           "echo \"migrator: running $MIGRATE_CMD\";",
           "if [ \"$MIGRATE_CMD\" = \"seed\" ]; then node dist/db/seed-db.js;",
           "elif [ \"$MIGRATE_CMD\" = \"migrate+seed\" ]; then node dist/db/migrate.js && node dist/db/seed-db.js;",
@@ -107,6 +109,7 @@ resource "aws_ecs_task_definition" "migrator" {
         { name = "DB_HOST", value = var.db_endpoint },
         { name = "DB_PORT", value = tostring(var.db_port) },
         { name = "DB_NAME", value = var.db_name },
+        { name = "DB_SSLMODE", value = "require" },
         { name = "MIGRATE_CMD", value = "migrate" },
       ]
       secrets = [
