@@ -53,6 +53,18 @@ newest first. PR numbers reference `jeffcruz4/pathways-crm-api`.
 - Dockerfile now copies the generated `drizzle/` migrations into the runtime
   image so the migrator can apply them.
 
+### Changed
+- **The running API now connects to Postgres via discrete `DB_*` parts** (same
+  `createDbFromEnv()` path as the migrator), so an RDS-managed password needs no
+  URL-encoding. `DATA_BACKEND=postgres` requires **either** `DB_HOST`
+  (+ `DB_USER`/`DB_PASSWORD`/`DB_NAME`/`DB_PORT`/`DB_SSLMODE`) **or**
+  `DATABASE_URL` (fallback). `src/config.ts` validates for either.
+- **Turnkey local Postgres dev loop:** `docker-compose.dev.yml` + scripts
+  `db:up` / `db:down` / `db:migrate` / `db:seed` (default to the local DB but
+  honor exported `DB_*`) and `dev:pg` (API on :8081, `DATA_BACKEND=postgres`).
+  Verified: migrate + seed load the sample dataset and the API serves every
+  endpoint from Postgres (`/healthz` → `backend: postgres`).
+
 ### Fixed
 - **Migrator `Invalid URL` crash with RDS-managed passwords.** The migrate/seed
   scripts now connect via a `createDbFromEnv()` helper that prefers discrete

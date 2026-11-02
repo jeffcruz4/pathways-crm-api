@@ -177,17 +177,23 @@ so run the workflows from `main`.
 
 ## Local development (no RDS needed)
 
-A local Postgres in Docker mirrors the RDS path:
+A local Postgres in Docker mirrors the RDS path. The dev DB isn't publicly
+reachable (private subnets), so this is the fast loop for UI + API work — no
+VPC tunnel required. Everything is turnkey via pnpm scripts:
 
 ```sh
-docker run --rm --name pathways-pg -e POSTGRES_PASSWORD=pathways \
-  -e POSTGRES_USER=pathways -e POSTGRES_DB=pathways -p 5433:5432 postgres:16-alpine
-
-export DATABASE_URL="postgres://pathways:pathways@localhost:5433/pathways"
-pnpm db:migrate && pnpm db:seed
-DATA_BACKEND=postgres PORT=8081 pnpm dev
+pnpm db:up           # start local Postgres (docker-compose.dev.yml, :5433, persistent volume)
+pnpm db:migrate      # apply migrations (defaults to the local DB_* above)
+pnpm db:seed         # load the sample dataset
+pnpm dev:pg          # API on :8081 with DATA_BACKEND=postgres + the discrete DB_* parts
 curl http://localhost:8081/healthz   # -> "backend":"postgres"
+
+pnpm db:down         # stop Postgres when done (volume persists)
 ```
+
+`pnpm dev` still runs the default memory backend; `pnpm dev:pg` is the
+Postgres-backed variant. The `db:migrate`/`db:seed` scripts default to the local
+DB but honor exported `DB_*` vars, so they also work against RDS over a tunnel.
 
 ## Not included yet (follow-ups)
 
