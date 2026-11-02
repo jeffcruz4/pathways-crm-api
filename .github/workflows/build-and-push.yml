@@ -5,13 +5,14 @@ name: Build and push image
 # migrator task.
 #
 # Prerequisites (one-time, set in repo settings):
-#   Secrets:  AWS_ROLE_ARN   -> terraform output gha_deploy_role_arn
-#   Variables: AWS_REGION    -> e.g. us-east-1
-#              ECR_REPOSITORY -> terraform output ecr_repository_url
+#   Secrets:   AWS_ROLE_ARN   -> your deploy role ARN (same one deploy.yml uses)
+#   Variables: AWS_REGION     -> e.g. us-east-1
+#              ECR_REPOSITORY  -> terraform output ecr_repository_url
 #
-# The OIDC role only trusts refs/heads/main (and the "production" environment),
-# so this job runs on push to main. Images are tagged with the commit SHA and,
-# on main, also "dev" (the tag the migrator task definition references).
+# ECR_REPOSITORY must be set AFTER the infra apply creates the repo. If it's
+# missing the build fails fast with a clear message (not a cryptic output error).
+# Images are tagged with the commit SHA and, on main, also "dev" (the tag the
+# migrator task definition references).
 
 on:
   push:
@@ -62,13 +63,20 @@ jobs:
 
       - name: Compute image tags
         id: meta
+        env:
+          REPO: ${{ vars.ECR_REPOSITORY }}
         run: |
           set -euo pipefail
-          REPO="${{ vars.ECR_REPOSITORY }}"
+          if [ -z "${REPO}" ]; then
+            echo "::error::Repository variable ECR_REPOSITORY is not set. Set it to the ECR repo URL (terraform output ecr_repository_url) in Settings -> Secrets and variables -> Actions -> Variables." >&2
+            exit 1
+          fi
           SHA="${GITHUB_SHA::12}"
-          echo "image=${REPO}:${SHA}" >> "$GITHUB_OUTPUT"
-          echo "repo=${REPO}" >> "$GITHUB_OUTPUT"
-          echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
+          {
+            echo "image=${REPO}:${SHA}"
+            echo "repo=${REPO}"
+            echo "sha=${SHA}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

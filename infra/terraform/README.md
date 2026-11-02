@@ -159,7 +159,7 @@ One-time setup in the repo's **Settings → Secrets and variables → Actions**:
 
 | Kind | Name | Value (from `terraform output`) |
 |---|---|---|
-| Secret | `AWS_ROLE_ARN` | `gha_deploy_role_arn` |
+| Secret | `AWS_ROLE_ARN` | your existing deploy role ARN (only use `gha_deploy_role_arn` if you set `create_github_oidc_role=true`) |
 | Variable | `AWS_REGION` | your region, e.g. `us-east-1` |
 | Variable | `ECR_REPOSITORY` | `ecr_repository_url` |
 | Variable | `ECS_CLUSTER` | `cluster_name` |
