@@ -1,9 +1,13 @@
 name: Deploy (terraform apply)
 
 # Manual, approval-gated cloud deploy of the Pathways CRM API infra (dedicated
-# RDS + ECR + one-off migrator + GitHub OIDC role). Runs `terraform plan`
-# always; runs `terraform apply` only after the `production` environment's
-# required reviewers approve. Uses GitHub OIDC — no long-lived AWS keys.
+# RDS + ECR + one-off migrator). Runs `terraform plan` always; runs
+# `terraform apply` only after the `production` environment's required reviewers
+# approve. Uses GitHub OIDC — no long-lived AWS keys.
+#
+# Auth: both jobs assume the role in the repo secret AWS_ROLE_ARN (your existing
+# deploy role). The stack does NOT create its own OIDC role by default
+# (create_github_oidc_role=false), so nothing here needs to be bootstrapped.
 #
 # Prereqs:
 #   - The S3/DynamoDB backend in environments/dev/backend.tf exists (shared
@@ -12,10 +16,6 @@ name: Deploy (terraform apply)
 #     RDS/EC2/SG/IAM/ECR/ECS + read the state bucket + lock table), repo var
 #     AWS_REGION.
 #   - GitHub Environment "production" with required reviewers configured.
-#
-# NOTE: the FIRST apply must be bootstrapped with your own credentials locally,
-# because this stack creates the GitHub OIDC deploy role the workflows use.
-# After that, CI can manage changes.
 
 on:
   workflow_dispatch:
@@ -24,10 +24,6 @@ on:
         description: "Image tag the migrator task runs (e.g. dev or a commit SHA)"
         required: true
         default: "dev"
-      existing_github_oidc_provider_arn:
-        description: "ARN of the account's existing GitHub OIDC provider (token.actions.githubusercontent.com). Required so the github-oidc module reuses it instead of creating a duplicate."
-        required: true
-        default: ""
 
 permissions:
   id-token: write
@@ -61,7 +57,6 @@ jobs:
         run: |
           terraform plan -input=false \
             -var="image_tag=${{ inputs.image_tag }}" \
-            -var="existing_github_oidc_provider_arn=${{ inputs.existing_github_oidc_provider_arn }}" \
             -out=tfplan
       - name: Upload plan
         uses: actions/upload-artifact@v4
