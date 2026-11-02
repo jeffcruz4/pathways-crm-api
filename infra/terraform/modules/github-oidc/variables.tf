@@ -1,3 +1,9 @@
+variable "create" {
+  type        = bool
+  default     = true
+  description = "Create the OIDC deploy role. Set false to reuse an existing role (then set its ARN as the repo secret AWS_ROLE_ARN yourself)."
+}
+
 variable "name_prefix" {
   type = string
 }

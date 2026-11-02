@@ -88,8 +88,12 @@ module "migrator" {
 }
 
 # ── GitHub OIDC deploy role (push image + run migrator from CI) ──
+# Optional: default off, since an existing deploy role is reused. Flip
+# create_github_oidc_role=true to have this stack manage its own least-privilege
+# role instead.
 module "github_oidc" {
   source                  = "../../modules/github-oidc"
+  create                  = var.create_github_oidc_role
   name_prefix             = var.name_prefix
   create_oidc_provider    = var.create_github_oidc_provider
   existing_provider_arn   = var.existing_github_oidc_provider_arn

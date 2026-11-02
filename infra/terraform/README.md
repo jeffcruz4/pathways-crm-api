@@ -48,6 +48,39 @@ Key outputs: `db_endpoint`, `db_port`, `db_name`, `db_security_group_id`,
 `migrator_task_family`, `migrator_subnet_ids`, `migrator_security_group_id`,
 `gha_deploy_role_arn`.
 
+### Apply from CI (`deploy.yml`)
+
+Routine infra changes can run through GitHub Actions instead of locally, using
+the same OIDC pattern as `corvia-digital-services`:
+
+- **ci.yml** validates on every PR/push: `terraform fmt -check` +
+  `init -backend=false` + `validate` (plus the API typecheck/build).
+- **deploy.yml** is a manual `workflow_dispatch`: it always runs
+  `terraform plan` (uploads the plan as an artifact), then runs
+  `terraform apply` of that saved plan **only after** the `production`
+  environment's required reviewers approve. Inputs: `image_tag` (default `dev`)
+  and `existing_github_oidc_provider_arn` (the account's OIDC provider ARN, so
+  the `github-oidc` module reuses it).
+
+**The deploy role (`AWS_ROLE_ARN`).** By default this stack does **not** create a
+deploy role (`create_github_oidc_role=false`) — you reuse an existing role.
+Whichever role you use for `deploy.yml` must be allowed to manage this stack
+(RDS/EC2/SG/IAM/ECR/ECS) and read the state bucket + lock table. The
+least-privilege `pathways-dev-gha-deploy` role (created only when you flip
+`create_github_oidc_role=true`) is scoped to ECR/ECS/PassRole/logs for
+`build-and-push.yml`/`migrate.yml` and is **not** broad enough to run Terraform.
+
+To reuse your existing role, its **trust policy** must allow this repo to assume
+it via GitHub OIDC. A ready-to-edit document is at
+`infra/iam/github-oidc-trust-policy.json` — replace `<ACCOUNT_ID>` and attach it
+as the role's trust relationship (or merge the `StringLike` subjects into your
+existing GitHub trust statement). Then set the role's ARN as the repo secret
+`AWS_ROLE_ARN`.
+
+**Bootstrap caveat:** if you *do* let this stack create the role
+(`create_github_oidc_role=true`), the first apply must run locally with your own
+credentials, because the role `deploy.yml` authenticates with doesn't exist yet.
+
 ## Connecting the API
 
 1. **Build `DATABASE_URL` from the master secret.** The secret
@@ -111,7 +144,8 @@ Watch progress in CloudWatch Logs under `/ecs/pathways-dev/migrator`. Use
 
 ### Option B — from GitHub Actions (OIDC, no keys)
 
-The repo ships two workflows (`.github/workflows/`):
+The repo ships these workflows (`.github/workflows/`) — image/DB here, infra
+above under "Apply from CI":
 
 - **build-and-push.yml** — on push to `main`, builds the image and pushes it to
   ECR tagged with the commit SHA and `dev` (the tag the migrator references).
