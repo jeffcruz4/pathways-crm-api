@@ -62,14 +62,24 @@ the same OIDC pattern as `corvia-digital-services`:
   and `existing_github_oidc_provider_arn` (the account's OIDC provider ARN, so
   the `github-oidc` module reuses it).
 
-**Bootstrap caveat:** the *first* apply must be run locally with your own
-credentials, because this stack creates the GitHub OIDC role (`AWS_ROLE_ARN`)
-that `deploy.yml` authenticates with. After that first apply, CI manages
-changes. The CI role must be allowed to manage this stack
-(RDS/EC2/SG/IAM/ECR/ECS) and read the state bucket + lock table — broader than
-the least-privilege `pathways-dev-gha-deploy` role used by
-`build-and-push.yml`/`migrate.yml`, so use a dedicated Terraform role for
-`AWS_ROLE_ARN` here.
+**The deploy role (`AWS_ROLE_ARN`).** By default this stack does **not** create a
+deploy role (`create_github_oidc_role=false`) — you reuse an existing role.
+Whichever role you use for `deploy.yml` must be allowed to manage this stack
+(RDS/EC2/SG/IAM/ECR/ECS) and read the state bucket + lock table. The
+least-privilege `pathways-dev-gha-deploy` role (created only when you flip
+`create_github_oidc_role=true`) is scoped to ECR/ECS/PassRole/logs for
+`build-and-push.yml`/`migrate.yml` and is **not** broad enough to run Terraform.
+
+To reuse your existing role, its **trust policy** must allow this repo to assume
+it via GitHub OIDC. A ready-to-edit document is at
+`infra/iam/github-oidc-trust-policy.json` — replace `<ACCOUNT_ID>` and attach it
+as the role's trust relationship (or merge the `StringLike` subjects into your
+existing GitHub trust statement). Then set the role's ARN as the repo secret
+`AWS_ROLE_ARN`.
+
+**Bootstrap caveat:** if you *do* let this stack create the role
+(`create_github_oidc_role=true`), the first apply must run locally with your own
+credentials, because the role `deploy.yml` authenticates with doesn't exist yet.
 
 ## Connecting the API
 

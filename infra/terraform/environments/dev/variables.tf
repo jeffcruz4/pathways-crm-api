@@ -66,6 +66,15 @@ variable "existing_github_oidc_provider_arn" {
   default = ""
 }
 
+# Whether to create the stack's own least-privilege GitHub OIDC deploy role.
+# Default false: reuse your existing deploy role instead. When false, set that
+# role's ARN as the repo secret AWS_ROLE_ARN yourself, and make sure its trust
+# policy allows this repo (see infra/iam/github-oidc-trust-policy.json).
+variable "create_github_oidc_role" {
+  type    = bool
+  default = false
+}
+
 # ── Sizing ──
 variable "instance_class" {
   type    = string

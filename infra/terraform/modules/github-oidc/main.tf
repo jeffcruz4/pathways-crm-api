@@ -17,7 +17,7 @@ locals {
 
 # Reuse the account's existing OIDC provider by default; optionally create one.
 resource "aws_iam_openid_connect_provider" "github" {
-  count           = var.create_oidc_provider ? 1 : 0
+  count           = var.create && var.create_oidc_provider ? 1 : 0
   url             = "https://token.actions.githubusercontent.com"
   client_id_list  = ["sts.amazonaws.com"]
   thumbprint_list = ["6938fd4d98bab03faadb97b34396831e3780aea1"]
@@ -50,6 +50,7 @@ data "aws_iam_policy_document" "trust" {
 }
 
 resource "aws_iam_role" "deploy" {
+  count              = var.create ? 1 : 0
   name               = "${var.name_prefix}-gha-deploy"
   assume_role_policy = data.aws_iam_policy_document.trust.json
   tags               = local.tags
@@ -106,7 +107,8 @@ data "aws_iam_policy_document" "deploy" {
 }
 
 resource "aws_iam_role_policy" "deploy" {
+  count  = var.create ? 1 : 0
   name   = "${var.name_prefix}-gha-deploy"
-  role   = aws_iam_role.deploy.id
+  role   = aws_iam_role.deploy[0].id
   policy = data.aws_iam_policy_document.deploy.json
 }

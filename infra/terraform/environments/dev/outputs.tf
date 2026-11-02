@@ -47,5 +47,5 @@ output "migrator_subnet_ids" {
 
 output "gha_deploy_role_arn" {
   value       = module.github_oidc.deploy_role_arn
-  description = "Set as the repo secret AWS_ROLE_ARN for the GitHub workflow."
+  description = "ARN of the stack-created deploy role, or null when create_github_oidc_role=false (you're reusing an existing role — set its ARN as AWS_ROLE_ARN yourself)."
 }

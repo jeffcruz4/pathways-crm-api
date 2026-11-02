@@ -44,6 +44,12 @@ newest first. PR numbers reference `jeffcruz4/pathways-crm-api`.
   `deploy.yml` (manual `workflow_dispatch`: always `terraform plan` + upload
   artifact, then `terraform apply` of the saved plan gated behind the
   `production` Environment; OIDC, `role-skip-session-tagging`).
+- **Optional OIDC deploy role.** The `github-oidc` module is now gated by a
+  `create` flag (env var `create_github_oidc_role`, default **false**) so you
+  can reuse an existing deploy role instead of creating a duplicate. Added
+  `infra/iam/github-oidc-trust-policy.json` — the GitHub OIDC trust statement
+  (repo `jeffcruz4/pathways-crm-api`, `main` ref + `production` environment) to
+  attach to that existing role.
 - Dockerfile now copies the generated `drizzle/` migrations into the runtime
   image so the migrator can apply them.
 - Infra README with the apply + turnkey migrate/seed (local `aws ecs run-task`
