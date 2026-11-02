@@ -1,0 +1,141 @@
+name: Run DB migration
+
+# Runs the one-off migrator ECS task against RDS using GitHub OIDC (no AWS
+# keys). You pick what to run (migrate | seed | migrate+seed). The job first
+# builds and pushes the image, then launches the migrator Fargate task on the
+# shared corvia cluster, waits for it to stop, and tails its logs.
+#
+# Approval-gated: the run-task job uses the "production" GitHub Environment, so
+# it waits for a required reviewer before touching the database. The OIDC role's
+# trust policy only allows this repo on refs/heads/main or the "production"
+# environment.
+#
+# Prerequisites (one-time, repo settings):
+#   Secrets:   AWS_ROLE_ARN    -> terraform output gha_deploy_role_arn
+#   Variables: AWS_REGION      -> e.g. us-east-1
+#              ECR_REPOSITORY  -> terraform output ecr_repository_url
+#              ECS_CLUSTER     -> terraform output cluster_name
+#              MIGRATOR_TASK_FAMILY     -> terraform output migrator_task_family
+#              MIGRATOR_SUBNET_IDS      -> comma-separated; terraform output migrator_subnet_ids
+#              MIGRATOR_SECURITY_GROUP  -> terraform output migrator_security_group_id
+#   Environment "production" with required reviewers (recommended).
+
+on:
+  workflow_dispatch:
+    inputs:
+      command:
+        description: "What to run against the database"
+        type: choice
+        required: true
+        default: migrate
+        options:
+          - migrate
+          - seed
+          - migrate+seed
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  # Never run two migrations at once.
+  group: db-migration
+  cancel-in-progress: false
+
+jobs:
+  # Build/push first so the migrator runs the current code. Reuses the shared
+  # workflow; runs on the same ref the dispatch targeted (must be main for OIDC).
+  build:
+    uses: ./.github/workflows/build-and-push.yml
+    permissions:
+      id-token: write
+      contents: read
+    # Reusable workflows don't inherit secrets by default.
+    secrets: inherit
+
+  migrate:
+    name: Run migrator task (${{ inputs.command }})
+    needs: build
+    runs-on: ubuntu-latest
+    # Gate the actual DB change behind the production environment's reviewers.
+    environment: production
+    steps:
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Run migrator task and wait
+        id: run
+        env:
+          CLUSTER: ${{ vars.ECS_CLUSTER }}
+          TASK_FAMILY: ${{ vars.MIGRATOR_TASK_FAMILY }}
+          SUBNETS: ${{ vars.MIGRATOR_SUBNET_IDS }}
+          SG: ${{ vars.MIGRATOR_SECURITY_GROUP }}
+          MIGRATE_CMD: ${{ inputs.command }}
+        run: |
+          set -euo pipefail
+
+          # Build the awsvpc network configuration from the comma-separated subnets.
+          SUBNET_JSON=$(echo "$SUBNETS" | tr ',' '\n' | sed 's/[[:space:]]//g' \
+            | awk 'NF{printf "%s\"%s\"", (NR>1?",":""), $0}')
+          NET="awsvpcConfiguration={subnets=[$SUBNET_JSON],securityGroups=[\"$SG\"],assignPublicIp=DISABLED}"
+
+          # Override the MIGRATE_CMD env on the migrator container for this run.
+          OVERRIDES=$(cat <<JSON
+          {"containerOverrides":[{"name":"migrator","environment":[{"name":"MIGRATE_CMD","value":"$MIGRATE_CMD"}]}]}
+          JSON
+          )
+
+          echo "Launching '$MIGRATE_CMD' on $CLUSTER (task family $TASK_FAMILY) …"
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "$CLUSTER" \
+            --task-definition "$TASK_FAMILY" \
+            --launch-type FARGATE \
+            --count 1 \
+            --network-configuration "$NET" \
+            --overrides "$OVERRIDES" \
+            --query 'tasks[0].taskArn' --output text)
+
+          if [ -z "$TASK_ARN" ] || [ "$TASK_ARN" = "None" ]; then
+            echo "run-task did not return a task ARN" >&2
+            exit 1
+          fi
+          echo "task_arn=$TASK_ARN" >> "$GITHUB_OUTPUT"
+          echo "Started: $TASK_ARN"
+
+          echo "Waiting for task to stop …"
+          aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$TASK_ARN"
+
+      - name: Report result and tail logs
+        env:
+          CLUSTER: ${{ vars.ECS_CLUSTER }}
+          TASK_ARN: ${{ steps.run.outputs.task_arn }}
+          LOG_GROUP: /ecs/pathways-dev/migrator
+        run: |
+          set -euo pipefail
+
+          DESC=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN")
+          EXIT_CODE=$(echo "$DESC" | python3 -c 'import sys,json;d=json.load(sys.stdin);c=d["tasks"][0]["containers"][0];print(c.get("exitCode","null"))')
+          REASON=$(echo "$DESC" | python3 -c 'import sys,json;d=json.load(sys.stdin);c=d["tasks"][0]["containers"][0];print(c.get("reason",""))')
+          TASK_ID="${TASK_ARN##*/}"
+
+          echo "## Migrator result" >> "$GITHUB_STEP_SUMMARY"
+          echo "- command: \`${{ inputs.command }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- exitCode: \`$EXIT_CODE\`" >> "$GITHUB_STEP_SUMMARY"
+          [ -n "$REASON" ] && echo "- reason: $REASON" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "----- migrator logs -----"
+          # Stream prefix is "migrator", container name "migrator".
+          aws logs get-log-events \
+            --log-group-name "$LOG_GROUP" \
+            --log-stream-name "migrator/migrator/$TASK_ID" \
+            --limit 200 \
+            --query 'events[].message' --output text || echo "(no logs yet)"
+
+          if [ "$EXIT_CODE" != "0" ]; then
+            echo "Migrator exited non-zero ($EXIT_CODE)" >&2
+            exit 1
+          fi
+          echo "Migrator completed successfully."

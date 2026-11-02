@@ -42,6 +42,30 @@ variable "allowed_cidr_blocks" {
   default = []
 }
 
+# ── Image / CI ──
+variable "ecr_repository_name" {
+  type    = string
+  default = "pathways/api"
+}
+
+variable "image_tag" {
+  type        = string
+  default     = "dev"
+  description = "Image tag the migrator task runs (CI sets this per build)."
+}
+
+# The corvia account already has a GitHub OIDC provider, so default to reusing
+# it. If somehow absent, flip create=true. existing ARN is the standard one.
+variable "create_github_oidc_provider" {
+  type    = bool
+  default = false
+}
+
+variable "existing_github_oidc_provider_arn" {
+  type    = string
+  default = ""
+}
+
 # ── Sizing ──
 variable "instance_class" {
   type    = string

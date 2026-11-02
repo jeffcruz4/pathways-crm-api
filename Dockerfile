@@ -17,6 +17,7 @@ RUN pnpm install --frozen-lockfile
 
 COPY tsconfig.json ./
 COPY src ./src
+COPY drizzle ./drizzle
 RUN pnpm run build
 
 # Prune to production dependencies for the runtime image.
@@ -29,6 +30,8 @@ ENV NODE_ENV=production
 
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
+# Generated SQL migrations — the migrator task resolves ./drizzle at runtime.
+COPY --from=build /app/drizzle ./drizzle
 COPY package.json ./
 
 EXPOSE 8080

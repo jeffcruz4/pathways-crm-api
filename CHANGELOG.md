@@ -25,8 +25,24 @@ newest first. PR numbers reference `jeffcruz4/pathways-crm-api`.
   network inputs required to apply) and reuses the shared state bucket under a
   `pathways-api/` key. Defaults to allowing the VPC CIDR so the first
   migrate/seed works. `fmt`/`validate` clean.
-- Infra README with the apply + migrate/seed + connect runbook; `.env.example`
-  Postgres examples.
+- **Turnkey DB migrator:** an `ecr` module (repo `pathways/api`, scan-on-push +
+  lifecycle), a `migrator` module (a one-off Fargate task definition that runs
+  the **same API image** with `MIGRATE_CMD` = `migrate` | `seed` |
+  `migrate+seed`, assembling `DATABASE_URL` at start from the RDS-managed secret
+  so no password lives in the task def/state), and a `github-oidc` module
+  (least-privilege `pathways-dev-gha-deploy` role: ECR push + `ecs:RunTask`
+  scoped to the cluster + `PassRole` scoped to the migrator roles + read logs).
+  The migrator reuses the existing `corvia-dev-cluster` and gets its own SG,
+  auto-allowed into the RDS SG. Zero-input apply.
+- **GitHub Actions (OIDC, no long-lived keys):** `build-and-push.yml`
+  (push-to-`main` → build + push image to ECR, tagged SHA + `dev`) and
+  `migrate.yml` (`workflow_dispatch` with a `migrate`/`seed`/`migrate+seed`
+  input → build/push, run the migrator task, wait, tail logs; the DB-changing
+  job gated behind the `production` Environment).
+- Dockerfile now copies the generated `drizzle/` migrations into the runtime
+  image so the migrator can apply them.
+- Infra README with the apply + turnkey migrate/seed (local `aws ecs run-task`
+  and the GitHub workflow) + connect runbook; `.env.example` Postgres examples.
 
 ### Verified
 - Local Docker Postgres: `db:migrate` + `db:seed` load 7 customers / 5 partners
