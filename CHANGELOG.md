@@ -52,6 +52,17 @@ newest first. PR numbers reference `jeffcruz4/pathways-crm-api`.
   attach to that existing role.
 - Dockerfile now copies the generated `drizzle/` migrations into the runtime
   image so the migrator can apply them.
+
+### Fixed
+- **Migrator `Invalid URL` crash with RDS-managed passwords.** The migrate/seed
+  scripts now connect via a `createDbFromEnv()` helper that prefers discrete
+  `DB_HOST`/`DB_PORT`/`DB_NAME`/`DB_USER`/`DB_PASSWORD`/`DB_SSLMODE` env vars and
+  passes them to postgres-js as an options object, instead of interpolating the
+  password into a `postgres://…` URL. RDS auto-generated passwords routinely
+  contain URL-significant characters (`?`, `:`, `@`, `]`, `$`) that broke
+  `new URL()`. The migrator task definition no longer assembles a `DATABASE_URL`;
+  `DATABASE_URL` is still honored as a fallback (local dev + the running API).
+  Verified end-to-end against local Postgres using the exact failing password.
 - Infra README with the apply + turnkey migrate/seed (local `aws ecs run-task`
   and the GitHub workflow) + connect runbook; `.env.example` Postgres examples.
 

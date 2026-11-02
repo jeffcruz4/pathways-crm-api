@@ -1,20 +1,18 @@
-import { createDb } from "./client.js";
+import { createDbFromEnv } from "./client.js";
 import * as schema from "./schema.js";
 import * as seed from "../data/seed.js";
 
 /**
  * Load the sample dataset (src/data/seed.ts) into Postgres. Idempotent-ish:
- * truncates the tables it owns, then inserts. Run with:
+ * truncates the tables it owns, then inserts. Connects from the environment
+ * (discrete DB_* parts or DATABASE_URL). Run locally with:
  *   DATABASE_URL=... pnpm db:seed
  *
  * NOTE: conversations/appointments are seeded minimally to match the current
  * read endpoints; expand as those resources grow.
  */
 async function main() {
-  const url = process.env.DATABASE_URL;
-  if (!url) throw new Error("DATABASE_URL is required to seed");
-
-  const { db, sql } = createDb(url);
+  const { db, sql } = createDbFromEnv();
 
   console.log("Seeding database …");
 
