@@ -77,6 +77,13 @@ jobs:
         run: |
           set -euo pipefail
 
+          # Strip stray whitespace/CR/newlines that can sneak in when repo
+          # variables are pasted in the GitHub UI (a trailing newline otherwise
+          # corrupts the AWS CLI args / the networkConfiguration string).
+          CLUSTER="$(printf '%s' "$CLUSTER" | tr -d '[:space:]')"
+          TASK_FAMILY="$(printf '%s' "$TASK_FAMILY" | tr -d '[:space:]')"
+          SG="$(printf '%s' "$SG" | tr -d '[:space:]')"
+
           # Build the awsvpc network configuration from the comma-separated subnets.
           SUBNET_JSON=$(echo "$SUBNETS" | tr ',' '\n' | sed 's/[[:space:]]//g' \
             | awk 'NF{printf "%s\"%s\"", (NR>1?",":""), $0}')

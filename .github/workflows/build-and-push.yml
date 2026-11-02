@@ -64,14 +64,20 @@ jobs:
       - name: Compute image tags
         id: meta
         env:
-          REPO: ${{ vars.ECR_REPOSITORY }}
+          ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
         run: |
           set -euo pipefail
+          # Strip any stray whitespace/CR/newline that can sneak in when the
+          # repo variable is pasted in the GitHub UI — a trailing newline makes
+          # the output value span two lines and GitHub rejects it with
+          # "Invalid format ':<sha>'".
+          REPO="$(printf '%s' "${ECR_REPOSITORY}" | tr -d '[:space:]')"
           if [ -z "${REPO}" ]; then
             echo "::error::Repository variable ECR_REPOSITORY is not set. Set it to the ECR repo URL (terraform output ecr_repository_url) in Settings -> Secrets and variables -> Actions -> Variables." >&2
             exit 1
           fi
-          SHA="${GITHUB_SHA::12}"
+          SHA="${GITHUB_SHA:0:12}"
+          echo "Resolved image repo: ${REPO} (tag ${SHA})"
           {
             echo "image=${REPO}:${SHA}"
             echo "repo=${REPO}"
