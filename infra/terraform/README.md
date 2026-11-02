@@ -48,6 +48,29 @@ Key outputs: `db_endpoint`, `db_port`, `db_name`, `db_security_group_id`,
 `migrator_task_family`, `migrator_subnet_ids`, `migrator_security_group_id`,
 `gha_deploy_role_arn`.
 
+### Apply from CI (`deploy.yml`)
+
+Routine infra changes can run through GitHub Actions instead of locally, using
+the same OIDC pattern as `corvia-digital-services`:
+
+- **ci.yml** validates on every PR/push: `terraform fmt -check` +
+  `init -backend=false` + `validate` (plus the API typecheck/build).
+- **deploy.yml** is a manual `workflow_dispatch`: it always runs
+  `terraform plan` (uploads the plan as an artifact), then runs
+  `terraform apply` of that saved plan **only after** the `production`
+  environment's required reviewers approve. Inputs: `image_tag` (default `dev`)
+  and `existing_github_oidc_provider_arn` (the account's OIDC provider ARN, so
+  the `github-oidc` module reuses it).
+
+**Bootstrap caveat:** the *first* apply must be run locally with your own
+credentials, because this stack creates the GitHub OIDC role (`AWS_ROLE_ARN`)
+that `deploy.yml` authenticates with. After that first apply, CI manages
+changes. The CI role must be allowed to manage this stack
+(RDS/EC2/SG/IAM/ECR/ECS) and read the state bucket + lock table — broader than
+the least-privilege `pathways-dev-gha-deploy` role used by
+`build-and-push.yml`/`migrate.yml`, so use a dedicated Terraform role for
+`AWS_ROLE_ARN` here.
+
 ## Connecting the API
 
 1. **Build `DATABASE_URL` from the master secret.** The secret
@@ -111,7 +134,8 @@ Watch progress in CloudWatch Logs under `/ecs/pathways-dev/migrator`. Use
 
 ### Option B — from GitHub Actions (OIDC, no keys)
 
-The repo ships two workflows (`.github/workflows/`):
+The repo ships these workflows (`.github/workflows/`) — image/DB here, infra
+above under "Apply from CI":
 
 - **build-and-push.yml** — on push to `main`, builds the image and pushes it to
   ECR tagged with the commit SHA and `dev` (the tag the migrator references).
