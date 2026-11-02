@@ -73,10 +73,30 @@ docker build -t pathways-crm-api:local .
 docker run --rm -p 8080:8080 -e CORS_ORIGINS=http://localhost:5173 pathways-crm-api:local
 ```
 
+## Postgres / RDS
+
+The Postgres path is built and proven (see `infra/terraform/README.md` for the
+full runbook):
+
+```sh
+# local Docker Postgres
+docker run --rm --name pathways-pg -e POSTGRES_PASSWORD=pathways \
+  -e POSTGRES_USER=pathways -e POSTGRES_DB=pathways -p 5433:5432 postgres:16-alpine
+export DATABASE_URL="postgres://pathways:pathways@localhost:5433/pathways"
+pnpm db:generate   # emit migrations from src/db/schema.ts (committed)
+pnpm db:migrate    # apply migrations
+pnpm db:seed       # load sample data
+DATA_BACKEND=postgres pnpm dev   # /healthz -> "backend":"postgres"
+```
+
+A dedicated RDS instance is defined in `infra/terraform` (apply it, then point
+`DATABASE_URL` at the RDS endpoint using the master secret).
+
 ## Not built yet (tracked)
 
-- Postgres repository + migrations/seed against RDS (schema is ready).
+- Apply the RDS Terraform + run migrations against it (needs a VPC; see infra
+  README).
 - Auth: JWT verification (Cognito) as a Fastify `preHandler` — a clear seam in
   `src/app.ts`.
 - Write endpoints (POST/PATCH) — this milestone is read-only.
-- Deploy infra (ECR + ECS service + ALB rule) mirroring the UI repo.
+- Compute module (ECR + ECS service + ALB) + CI for the API service.
