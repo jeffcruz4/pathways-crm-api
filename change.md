@@ -12,6 +12,24 @@ Stood the API up from a read-only `/home` scaffold to a relational,
 multi-tenant CRM backend with create endpoints, a dedicated RDS instance, and a
 turnkey deploy + local-dev story.
 
+### #17 · customer dashboard stats endpoint + seed date-spread
+*(pending)*
+- `domain/customer-stats.ts`: `CustomerStats` contract — per-status counts
+  (total/active/lead/lapsed), lifetime + average LTV (`Money`), 90-day signups
+  trend (one zero-filled point per day), 6-month revenue trend (completed-job
+  revenue by month), and pending-vs-completed job mix.
+- `assemble.ts`: pure `assembleCustomerStats(customers, jobs, now)` so both
+  backends share one implementation (fetch rows, reduce in JS — existing
+  convention).
+- Repository (both backends): `getCustomerStats()`.
+- Route: `GET /customers/stats` — registered before `/customers/:id` and matched
+  ahead of it by Fastify's router, so "stats" is never read as an id.
+- `memoryRepository`: honor the seed's explicit `createdAt` on customers (was
+  always overwriting with `now()`), so signups-trend parity matches Postgres.
+- Seed: customers get `createdAt` spread across ~6 months; recurring customers
+  get a steady weekly cadence of completed jobs (24 jobs total) so the trend
+  and revenue charts have real shape.
+
 ### #11 · cleaners CRUD + partner create + worker list endpoints
 *(merged 2026-11-03)*
 - `domain/cleaner.ts`: `Cleaner` / `CleanerListItem` / `CleanerCreate`.
