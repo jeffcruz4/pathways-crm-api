@@ -9,6 +9,7 @@ import {
   QuoteCreate,
   JobCreate,
   ReviewCreate,
+  AppointmentCreate,
 } from "../domain/crm.js";
 
 export function customerRoutes(repo: Repository) {
@@ -85,5 +86,17 @@ export function customerRoutes(repo: Repository) {
           : reply.code(404).send({ error: "not_found", message: "Customer or job not found" });
       },
     );
+
+    app.get<{ Params: { id: string } }>("/customers/:id/appointments", async (req, reply) => {
+      const items = await repo.listAppointments(req.params.id);
+      return items ? { items } : notFound(reply);
+    });
+
+    app.post<{ Params: { id: string } }>("/customers/:id/appointments", async (req, reply) => {
+      const input = parseBody(AppointmentCreate, req.body, reply);
+      if (!input) return;
+      const created = await repo.createAppointment(req.params.id, input);
+      return created ? reply.code(201).send(created) : notFound(reply);
+    });
   };
 }

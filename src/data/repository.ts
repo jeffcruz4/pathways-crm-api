@@ -18,6 +18,10 @@ import type {
   JobCreate,
   Review,
   ReviewCreate,
+  ServiceOffering,
+  ServiceOfferingCreate,
+  Appointment,
+  AppointmentCreate,
 } from "../domain/crm.js";
 
 /**
@@ -41,6 +45,12 @@ export interface Repository {
   createQuote(customerId: string, input: QuoteCreate): Promise<Quote | undefined>;
   createJob(customerId: string, input: JobCreate): Promise<Job | undefined>;
   addJobReview(customerId: string, jobId: string, input: ReviewCreate): Promise<Review | undefined>;
+  listAppointments(customerId: string): Promise<Appointment[] | undefined>;
+  createAppointment(customerId: string, input: AppointmentCreate): Promise<Appointment | undefined>;
+
+  // Service offerings (reusable catalog / plan templates)
+  listServiceOfferings(): Promise<ServiceOffering[]>;
+  createServiceOffering(input: ServiceOfferingCreate): Promise<ServiceOffering>;
 
   // Partners
   listPartners(): Promise<PartnerListItem[]>;

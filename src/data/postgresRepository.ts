@@ -12,6 +12,8 @@ import {
   mapQuote,
   mapReview,
   mapJob,
+  mapServiceOffering,
+  mapAppointment,
   partnerListItem,
   partnerDetail,
   type CustomerBundle,
@@ -35,6 +37,10 @@ import type {
   JobCreate,
   Review,
   ReviewCreate,
+  ServiceOffering,
+  ServiceOfferingCreate,
+  Appointment,
+  AppointmentCreate,
 } from "../domain/crm.js";
 
 /**
@@ -336,6 +342,76 @@ export class PostgresRepository implements Repository {
       })
       .returning();
     return mapReview(row);
+  }
+
+  async listAppointments(customerId: string): Promise<Appointment[] | undefined> {
+    const c = await this.resolveCustomer(customerId);
+    if (!c) return undefined;
+    const rows = await this.db
+      .select()
+      .from(schema.appointments)
+      .where(eq(schema.appointments.customerId, c.id))
+      .orderBy(asc(schema.appointments.startsAt));
+    const out: Appointment[] = [];
+    for (const r of rows) {
+      const name = await this.workerName(r.assignedTeamMemberId, r.assignedPartnerId);
+      out.push(mapAppointment(r, name));
+    }
+    return out;
+  }
+
+  async createAppointment(
+    customerId: string,
+    input: AppointmentCreate,
+  ): Promise<Appointment | undefined> {
+    const c = await this.resolveCustomer(customerId);
+    if (!c) return undefined;
+    const [row] = await this.db
+      .insert(schema.appointments)
+      .values({
+        tenantId: c.tenantId,
+        customerId: c.id,
+        propertyId: input.propertyId,
+        jobId: input.jobId,
+        quoteId: input.quoteId,
+        kind: input.kind,
+        status: input.status ?? "scheduled",
+        title: input.title,
+        detail: input.detail,
+        startsAt: new Date(input.startsAt),
+        endsAt: input.endsAt ? new Date(input.endsAt) : undefined,
+        durationMin: input.durationMin,
+        assigneeType: input.assigneeType,
+        assignedTeamMemberId: input.assignedTeamMemberId,
+        assignedPartnerId: input.assignedPartnerId,
+        locationOverride: input.locationOverride,
+      })
+      .returning();
+    const name = await this.workerName(row.assignedTeamMemberId, row.assignedPartnerId);
+    return mapAppointment(row, name);
+  }
+
+  // ── Service offerings (reusable catalog) ──
+  async listServiceOfferings(): Promise<ServiceOffering[]> {
+    const rows = await this.db.select().from(schema.serviceOfferings);
+    return rows.map(mapServiceOffering);
+  }
+
+  async createServiceOffering(input: ServiceOfferingCreate): Promise<ServiceOffering> {
+    const tenantId = await this.tenantId();
+    const [row] = await this.db
+      .insert(schema.serviceOfferings)
+      .values({
+        tenantId,
+        name: input.name,
+        serviceType: input.serviceType,
+        frequency: input.frequency,
+        description: input.description,
+        defaultPriceCents: input.defaultPriceCents,
+        isActive: input.isActive ?? true,
+      })
+      .returning();
+    return mapServiceOffering(row);
   }
 
   private async workerName(teamMemberId: string | null, partnerId: string | null): Promise<string | null> {

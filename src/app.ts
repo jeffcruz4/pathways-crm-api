@@ -6,6 +6,7 @@ import { homeRoutes } from "./routes/home.js";
 import { customerRoutes } from "./routes/customers.js";
 import { partnerRoutes } from "./routes/partners.js";
 import { teamMemberRoutes } from "./routes/team-members.js";
+import { serviceOfferingRoutes } from "./routes/service-offerings.js";
 import { pipelineRoutes } from "./routes/pipeline.js";
 import { conversationRoutes } from "./routes/conversations.js";
 import { calendarRoutes } from "./routes/calendar.js";
@@ -38,6 +39,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   await app.register(customerRoutes(repo), { prefix: apiPrefix });
   await app.register(partnerRoutes(repo), { prefix: apiPrefix });
   await app.register(teamMemberRoutes(repo), { prefix: apiPrefix });
+  await app.register(serviceOfferingRoutes(repo), { prefix: apiPrefix });
   await app.register(pipelineRoutes(repo), { prefix: apiPrefix });
   await app.register(conversationRoutes(repo), { prefix: apiPrefix });
   await app.register(calendarRoutes(repo), { prefix: apiPrefix });

@@ -23,6 +23,14 @@ export const ContactChannel = z.enum(["sms", "email", "call"]);
 export const ConsentStatus = z.enum(["unknown", "opted_in", "opted_out"]);
 export const PropertyType = z.enum(["house", "apartment", "commercial"]);
 export const ReviewSource = z.enum(["customer", "staff"]);
+export const AppointmentKind = z.enum(["clean", "walkthrough", "quote-visit", "call", "other"]);
+export const AppointmentStatus = z.enum([
+  "scheduled",
+  "confirmed",
+  "completed",
+  "cancelled",
+  "no-show",
+]);
 
 // ── Contacts ──
 export const Contact = z.object({
@@ -183,6 +191,61 @@ export const JobCreate = z.object({
   notes: z.string().optional(),
 });
 
+// ── Service offerings (reusable catalog; plan templates) ──
+export const ServiceOffering = z.object({
+  id: z.string(),
+  name: z.string(),
+  serviceType: ServiceType,
+  frequency: PlanFrequency,
+  description: z.string().nullable(),
+  defaultPrice: Money.nullable(),
+  isActive: z.boolean(),
+});
+export const ServiceOfferingCreate = z.object({
+  name: z.string().min(1),
+  serviceType: ServiceType,
+  frequency: PlanFrequency,
+  description: z.string().optional(),
+  defaultPriceCents: z.number().int().nonnegative().optional(),
+  isActive: z.boolean().optional(),
+});
+
+// ── Appointments (calendar events; service + non-service) ──
+export const Appointment = z.object({
+  id: z.string(),
+  customerId: z.string().nullable(),
+  propertyId: z.string().nullable(),
+  jobId: z.string().nullable(),
+  quoteId: z.string().nullable(),
+  kind: AppointmentKind,
+  status: AppointmentStatus,
+  title: z.string(),
+  detail: z.string().nullable(),
+  startsAt: z.string(),
+  endsAt: z.string().nullable(),
+  durationMin: z.number().nullable(),
+  assigneeType: AssigneeType.nullable(),
+  assigneeName: z.string().nullable(),
+  locationOverride: z.string().nullable(),
+});
+export const AppointmentCreate = z.object({
+  customerId: z.string().optional(),
+  propertyId: z.string().optional(),
+  jobId: z.string().optional(),
+  quoteId: z.string().optional(),
+  kind: AppointmentKind,
+  status: AppointmentStatus.optional(),
+  title: z.string().min(1),
+  detail: z.string().optional(),
+  startsAt: z.string().min(1),
+  endsAt: z.string().optional(),
+  durationMin: z.number().int().optional(),
+  assigneeType: AssigneeType.optional(),
+  assignedTeamMemberId: z.string().optional(),
+  assignedPartnerId: z.string().optional(),
+  locationOverride: z.string().optional(),
+});
+
 export type Contact = z.infer<typeof Contact>;
 export type ContactCreate = z.infer<typeof ContactCreate>;
 export type Property = z.infer<typeof Property>;
@@ -195,3 +258,7 @@ export type Review = z.infer<typeof Review>;
 export type ReviewCreate = z.infer<typeof ReviewCreate>;
 export type Job = z.infer<typeof Job>;
 export type JobCreate = z.infer<typeof JobCreate>;
+export type ServiceOffering = z.infer<typeof ServiceOffering>;
+export type ServiceOfferingCreate = z.infer<typeof ServiceOfferingCreate>;
+export type Appointment = z.infer<typeof Appointment>;
+export type AppointmentCreate = z.infer<typeof AppointmentCreate>;
