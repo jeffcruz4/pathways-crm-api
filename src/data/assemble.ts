@@ -11,6 +11,7 @@ import * as schema from "../db/schema.js";
 import { formatMoney } from "../domain/money.js";
 import type { Customer } from "../domain/customer.js";
 import type { Contact, Property, Plan, Quote, Job, Review } from "../domain/crm.js";
+import type { Partner, PartnerListItem } from "../domain/partner.js";
 
 type CustomerRow = InferSelectModel<typeof schema.customers>;
 type ContactRow = InferSelectModel<typeof schema.customerContacts>;
@@ -19,8 +20,42 @@ type PlanRow = InferSelectModel<typeof schema.plans>;
 type QuoteRow = InferSelectModel<typeof schema.quotes>;
 type JobRow = InferSelectModel<typeof schema.jobs>;
 type ReviewRow = InferSelectModel<typeof schema.jobReviews>;
+type PartnerRow = InferSelectModel<typeof schema.partners>;
 
 const iso = (d: Date | null): string | null => (d ? d.toISOString() : null);
+
+// ── Partners (rollups leads/jobs/value derived; 0 until computed — design Q6) ──
+export function partnerListItem(r: PartnerRow): PartnerListItem {
+  return {
+    id: r.id,
+    name: r.displayName,
+    contact: r.contactName ?? "",
+    location: r.location ?? "",
+    type: r.type,
+    stage: r.stage,
+    leadsGenerated: 0,
+    jobsCovered: 0,
+    value: 0,
+  };
+}
+
+export function partnerDetail(r: PartnerRow): Partner {
+  return {
+    id: r.id,
+    name: r.displayName,
+    contact: r.contactName ?? "",
+    location: r.location ?? "",
+    type: r.type,
+    stage: r.stage,
+    leadsGenerated: 0,
+    jobsCovered: 0,
+    value: 0,
+    since: r.since ?? "",
+    summary: r.summary,
+    employment: { engagement: "", rate: "", coverage: "", insurance: "" },
+    activity: [],
+  };
+}
 
 export function mapContact(r: ContactRow): Contact {
   return {

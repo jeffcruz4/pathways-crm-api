@@ -12,10 +12,13 @@ import {
   mapQuote,
   mapReview,
   mapJob,
+  partnerListItem,
+  partnerDetail,
   type CustomerBundle,
 } from "./assemble.js";
 import type { Customer, CustomerListItem, CustomerCreate } from "../domain/customer.js";
-import type { Partner, PartnerListItem } from "../domain/partner.js";
+import type { Partner, PartnerListItem, PartnerCreate } from "../domain/partner.js";
+import type { Cleaner, CleanerListItem, CleanerCreate } from "../domain/cleaner.js";
 import type { Pipeline, PipelineStage } from "../domain/deal.js";
 import type { ConvoListItem, ConversationDetail } from "../domain/conversation.js";
 import type { CalendarWeek } from "../domain/calendar.js";
@@ -347,39 +350,82 @@ export class PostgresRepository implements Repository {
     return null;
   }
 
-  // ── Partners (list/detail; rollups derived) ──
+  // ── Partners (list/detail; rollups derived — 0 until computed) ──
   async listPartners(): Promise<PartnerListItem[]> {
     const rows = await this.db.select().from(schema.partners);
-    return rows.map((r) => ({
-      id: r.id,
-      name: r.displayName,
-      contact: r.contactName ?? "",
-      location: r.location ?? "",
-      type: r.type,
-      stage: r.stage,
-      leadsGenerated: 0,
-      jobsCovered: 0,
-      value: 0,
-    }));
+    return rows.map(partnerListItem);
   }
 
   async getPartner(id: string): Promise<Partner | undefined> {
     const [r] = await this.db.select().from(schema.partners).where(eq(schema.partners.id, id));
-    if (!r) return undefined;
+    return r ? partnerDetail(r) : undefined;
+  }
+
+  async createPartner(input: PartnerCreate): Promise<Partner> {
+    const tenantId = await this.tenantId();
+    const [r] = await this.db
+      .insert(schema.partners)
+      .values({
+        tenantId,
+        displayName: input.name,
+        type: input.type,
+        stage: input.stage ?? "prospect",
+        contactName: input.contactName,
+        email: input.email,
+        phone: input.phone,
+        location: input.location,
+        since: input.since,
+        skills: input.skills ?? [],
+        commissionBps: input.commissionBps,
+        summary: input.summary ?? "",
+        notes: input.notes,
+      })
+      .returning();
+    return partnerDetail(r);
+  }
+
+  // ── Cleaners (full-time staff) ──
+  async listCleaners(): Promise<CleanerListItem[]> {
+    const rows = await this.db.select().from(schema.cleaners);
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.displayName,
+      status: r.status,
+      employmentType: r.employmentType,
+      skills: r.skills,
+      homeBase: r.homeBase,
+    }));
+  }
+
+  async createCleaner(input: CleanerCreate): Promise<Cleaner> {
+    const tenantId = await this.tenantId();
+    const [r] = await this.db
+      .insert(schema.cleaners)
+      .values({
+        tenantId,
+        displayName: input.name,
+        firstName: input.firstName,
+        lastName: input.lastName,
+        email: input.email,
+        phone: input.phone,
+        status: input.status ?? "active",
+        employmentType: input.employmentType ?? "full-time",
+        hiredOn: input.hiredOn,
+        skills: input.skills ?? [],
+        homeBase: input.homeBase,
+        notes: input.notes,
+      })
+      .returning();
     return {
       id: r.id,
       name: r.displayName,
-      contact: r.contactName ?? "",
-      location: r.location ?? "",
-      type: r.type,
-      stage: r.stage,
-      leadsGenerated: 0,
-      jobsCovered: 0,
-      value: 0,
-      since: r.since ?? "",
-      summary: r.summary,
-      employment: { engagement: "", rate: "", coverage: "", insurance: "" },
-      activity: [],
+      email: r.email,
+      phone: r.phone,
+      status: r.status,
+      employmentType: r.employmentType,
+      hiredOn: r.hiredOn,
+      skills: r.skills,
+      homeBase: r.homeBase,
     };
   }
 
