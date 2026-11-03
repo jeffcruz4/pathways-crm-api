@@ -1,9 +1,20 @@
 import { z } from "zod";
+import { Money } from "./money.js";
+import {
+  Contact,
+  Property,
+  Plan,
+  Quote,
+  Job,
+  ContactChannel,
+} from "./crm.js";
 
 /**
- * Customer domain model. Mirrors the UI's customer record shape, including the
- * Cori-built profile fields (summary, provenance, home details, activity) that
- * are first-class data in this product.
+ * Customer domain model. The customer row holds identity; the richer 360° view
+ * (contacts, properties, plans, quotes, jobs+reviews) is assembled from related
+ * tables, and the presentation fields the UI already renders (summary, home
+ * details, next step, activity, lifetimeValue, last/next service) are DERIVED
+ * on read (design Q6) — kept here so existing screens keep working.
  */
 
 export const CustomerStatus = z.enum(["active", "lead", "lapsed"]);
@@ -46,6 +57,14 @@ export const Customer = z.object({
   nextStep: NextStep.optional(),
   goodToKnow: z.array(z.string()),
   activity: z.array(ActivityItem),
+
+  // ── 360° relational collections (assembled from related tables) ──
+  lifetimeValueMoney: Money,
+  contacts: z.array(Contact),
+  properties: z.array(Property),
+  plans: z.array(Plan),
+  quotes: z.array(Quote),
+  jobs: z.array(Job),
 });
 
 /** Lightweight shape returned by the list endpoint (no heavy detail fields). */
@@ -62,7 +81,26 @@ export const CustomerListItem = Customer.pick({
   tags: true,
 });
 
+/** Create-input for POST /customers. Identity + an optional first contact. */
+export const CustomerCreate = z.object({
+  name: z.string().min(1),
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  companyName: z.string().optional(),
+  status: CustomerStatus.optional(),
+  stage: CustomerStage.optional(),
+  preferredContact: ContactChannel.optional(),
+  source: z.string().optional(),
+  summary: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  notes: z.string().optional(),
+  // Optional conveniences so a single POST can create a usable customer.
+  mobile: z.string().optional(),
+  email: z.string().optional(),
+});
+
 export type Customer = z.infer<typeof Customer>;
 export type CustomerListItem = z.infer<typeof CustomerListItem>;
+export type CustomerCreate = z.infer<typeof CustomerCreate>;
 export type CustomerStatus = z.infer<typeof CustomerStatus>;
 export type CustomerStage = z.infer<typeof CustomerStage>;

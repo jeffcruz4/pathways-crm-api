@@ -1,129 +1,51 @@
 import { createDbFromEnv } from "./client.js";
 import * as schema from "./schema.js";
-import * as seed from "../data/seed.js";
+import * as rel from "../data/seedRelational.js";
 
 /**
- * Load the sample dataset (src/data/seed.ts) into Postgres. Idempotent-ish:
- * truncates the tables it owns, then inserts. Connects from the environment
- * (discrete DB_* parts or DATABASE_URL). Run locally with:
- *   DATABASE_URL=... pnpm db:seed
- *
- * NOTE: conversations/appointments are seeded minimally to match the current
- * read endpoints; expand as those resources grow.
+ * Load the relational sample dataset (src/data/seedRelational.ts) into Postgres.
+ * Deletes in child→parent order, then inserts in parent→child order so FKs are
+ * satisfied. Connects from the environment (discrete DB_* parts or
+ * DATABASE_URL). Run locally with:  pnpm db:seed
  */
 async function main() {
   const { db, sql } = createDbFromEnv();
 
   console.log("Seeding database …");
 
-  // Clear (child → parent order not critical here; no FKs enforced yet).
-  await db.delete(schema.conversationEntries);
-  await db.delete(schema.conversations);
+  // Clear child → parent (respect FKs).
+  await db.delete(schema.jobReviews);
   await db.delete(schema.appointments);
-  await db.delete(schema.deals);
-  await db.delete(schema.partners);
+  await db.delete(schema.jobs);
+  await db.delete(schema.quotes);
+  await db.delete(schema.plans);
+  await db.delete(schema.properties);
+  await db.delete(schema.customerContacts);
   await db.delete(schema.customers);
+  await db.delete(schema.serviceOfferings);
+  await db.delete(schema.cleaners);
+  await db.delete(schema.partners);
+  await db.delete(schema.tenants);
 
-  // Customers
-  await db.insert(schema.customers).values(
-    seed.customers.map((c) => ({
-      id: c.id,
-      name: c.name,
-      phone: c.phone,
-      location: c.location,
-      plan: c.plan,
-      status: c.status,
-      stage: c.stage,
-      lifetimeValue: c.lifetimeValue,
-      lastService: c.lastService,
-      nextService: c.nextService ?? null,
-      tags: c.tags,
-      summary: c.summary,
-      provenance: c.provenance,
-      homeDetails: c.homeDetails,
-      nextStep: c.nextStep ?? null,
-      goodToKnow: c.goodToKnow,
-      activity: c.activity,
-    })),
-  );
-
-  // Partners
-  await db.insert(schema.partners).values(
-    seed.partners.map((p) => ({
-      id: p.id,
-      name: p.name,
-      contact: p.contact,
-      location: p.location,
-      type: p.type,
-      stage: p.stage,
-      leadsGenerated: p.leadsGenerated,
-      jobsCovered: p.jobsCovered,
-      value: p.value,
-      since: p.since,
-      summary: p.summary,
-      employment: p.employment,
-      activity: p.activity,
-    })),
-  );
-
-  // Deals (flatten pipeline stages)
-  const deals = seed.pipeline.stages.flatMap((s) =>
-    s.deals.map((d) => ({
-      id: d.id,
-      stageId: d.stageId,
-      name: d.name,
-      price: d.price ?? null,
-      priceUnit: d.priceUnit ?? null,
-      detail: d.detail,
-      signal: d.signal,
-      chip: d.chip,
-      needsYou: d.needsYou ?? false,
-    })),
-  );
-  await db.insert(schema.deals).values(deals);
-
-  // Appointments
-  await db.insert(schema.appointments).values(
-    seed.calendarWeek.appointments.map((a) => ({
-      id: a.id,
-      dayIndex: a.dayIndex,
-      start: a.start,
-      durationMin: a.durationMin,
-      title: a.title,
-      detail: a.detail,
-      kind: a.kind,
-    })),
-  );
-
-  // Conversations + entries
-  for (const convo of Object.values(seed.conversations)) {
-    await db.insert(schema.conversations).values({
-      id: convo.id,
-      name: convo.name,
-      phone: convo.phone,
-      location: convo.location,
-      flag: convo.flag,
-      suggestedReply: convo.suggestedReply,
-      recordUpdates: convo.recordUpdates,
-      recordNote: convo.recordNote ?? null,
-      customerId: convo.customer.customerId ?? null,
-    });
-    await db.insert(schema.conversationEntries).values(
-      convo.entries.map((e) => ({
-        id: `${convo.id}:${e.id}`,
-        conversationId: convo.id,
-        kind: e.kind,
-        text: e.text,
-        meta: e.meta ?? null,
-        chips: e.chips ?? [],
-        hasTranscript: e.hasTranscript ?? false,
-        dayDivider: e.dayDivider ?? null,
-      })),
-    );
-  }
+  // Insert parent → child.
+  await db.insert(schema.tenants).values(rel.tenant);
+  await db.insert(schema.cleaners).values(rel.cleaners);
+  await db.insert(schema.partners).values(rel.partners);
+  await db.insert(schema.serviceOfferings).values(rel.serviceOfferings);
+  await db.insert(schema.customers).values(rel.customers);
+  await db.insert(schema.customerContacts).values(rel.contacts);
+  await db.insert(schema.properties).values(rel.properties);
+  await db.insert(schema.quotes).values(rel.quotes);
+  await db.insert(schema.plans).values(rel.plans);
+  await db.insert(schema.jobs).values(rel.jobs);
+  await db.insert(schema.jobReviews).values(rel.reviews);
+  await db.insert(schema.appointments).values(rel.appointments);
 
   console.log(
-    `Seeded: ${seed.customers.length} customers, ${seed.partners.length} partners, ${deals.length} deals, ${seed.calendarWeek.appointments.length} appointments, ${Object.keys(seed.conversations).length} conversations.`,
+    `Seeded: ${rel.customers.length} customers, ${rel.contacts.length} contacts, ` +
+      `${rel.properties.length} properties, ${rel.plans.length} plans, ${rel.quotes.length} quotes, ` +
+      `${rel.jobs.length} jobs, ${rel.reviews.length} reviews, ${rel.appointments.length} appointments, ` +
+      `${rel.cleaners.length} cleaners, ${rel.partners.length} partners.`,
   );
   await sql.end();
 }

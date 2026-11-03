@@ -1,25 +1,109 @@
-import { eq, asc } from "drizzle-orm";
+import { eq, and, asc, inArray } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import type { Repository } from "./repository.js";
 import * as schema from "../db/schema.js";
 import * as seed from "./seed.js";
-import type { Customer, CustomerListItem } from "../domain/customer.js";
+import type { InferSelectModel } from "drizzle-orm";
+import {
+  assembleCustomer,
+  mapContact,
+  mapProperty,
+  mapPlan,
+  mapQuote,
+  mapReview,
+  mapJob,
+  type CustomerBundle,
+} from "./assemble.js";
+import type { Customer, CustomerListItem, CustomerCreate } from "../domain/customer.js";
 import type { Partner, PartnerListItem } from "../domain/partner.js";
-import type { Pipeline, PipelineStage, Deal, DealStageId } from "../domain/deal.js";
-import type { ConvoListItem, ConversationDetail, ThreadEntry } from "../domain/conversation.js";
+import type { Pipeline, PipelineStage } from "../domain/deal.js";
+import type { ConvoListItem, ConversationDetail } from "../domain/conversation.js";
 import type { CalendarWeek } from "../domain/calendar.js";
+import type {
+  Contact,
+  ContactCreate,
+  Property,
+  PropertyCreate,
+  Plan,
+  PlanCreate,
+  Quote,
+  QuoteCreate,
+  Job,
+  JobCreate,
+  Review,
+  ReviewCreate,
+} from "../domain/crm.js";
 
 /**
- * Postgres (Drizzle) repository. Table-backed for the core resources
- * (customers, partners, deals, appointments, conversations). Non-tabular
- * aggregations that don't yet have their own storage — the Home view, the Daily
- * Digest, and the pipeline/calendar *summary* headers — are still served from
- * the seed constants; those become computed/stored in a later pass (see TD).
+ * Postgres (Drizzle) repository over the relational schema. The customer record
+ * is assembled from related tables (contacts/properties/plans/quotes/jobs +
+ * reviews) with derived fields computed on read (design Q6). Conversations,
+ * Home, and Digest aren't modeled in this schema yet and are served from seed.
  */
 export class PostgresRepository implements Repository {
   constructor(private readonly db: PostgresJsDatabase<typeof schema>) {}
 
-  // ── Home / digest / summaries: not yet table-modeled ──
+  /** The single tenant for now (multi-tenant columns exist; auth comes later). */
+  private async tenantId(): Promise<string> {
+    const [t] = await this.db.select().from(schema.tenants).limit(1);
+    if (t) return t.id;
+    const [created] = await this.db
+      .insert(schema.tenants)
+      .values({ name: "Default", slug: "default" })
+      .returning();
+    return created.id;
+  }
+
+  // Resolve a customer from either a UUID or a human slug.
+  private async resolveCustomer(idOrSlug: string) {
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrSlug);
+    const col = isUuid ? schema.customers.id : schema.customers.slug;
+    const [row] = await this.db.select().from(schema.customers).where(eq(col, idOrSlug));
+    return row;
+  }
+
+  private async bundleFor(
+    customer: InferSelectModel<typeof schema.customers>,
+  ): Promise<CustomerBundle> {
+    const cid = customer.id;
+    const [contacts, properties, plans, quotes, jobs] = await Promise.all([
+      this.db.select().from(schema.customerContacts).where(eq(schema.customerContacts.customerId, cid)),
+      this.db.select().from(schema.properties).where(eq(schema.properties.customerId, cid)),
+      this.db.select().from(schema.plans).where(eq(schema.plans.customerId, cid)),
+      this.db.select().from(schema.quotes).where(eq(schema.quotes.customerId, cid)),
+      this.db.select().from(schema.jobs).where(eq(schema.jobs.customerId, cid)),
+    ]);
+
+    const jobIds = jobs.map((j) => j.id);
+    const reviews = jobIds.length
+      ? await this.db.select().from(schema.jobReviews).where(inArray(schema.jobReviews.jobId, jobIds))
+      : [];
+    const reviewsByJob = new Map(reviews.map((r) => [r.jobId, r]));
+
+    // Resolve worker display names for assigned jobs.
+    const cleanerIds = jobs.map((j) => j.assignedCleanerId).filter((x): x is string => !!x);
+    const partnerIds = jobs.map((j) => j.assignedPartnerId).filter((x): x is string => !!x);
+    const workerNameById = new Map<string, string>();
+    if (cleanerIds.length) {
+      const rows = await this.db
+        .select()
+        .from(schema.cleaners)
+        .where(inArray(schema.cleaners.id, cleanerIds));
+      for (const r of rows) workerNameById.set(r.id, r.displayName);
+    }
+    if (partnerIds.length) {
+      const rows = await this.db
+        .select()
+        .from(schema.partners)
+        .where(inArray(schema.partners.id, partnerIds));
+      for (const r of rows) workerNameById.set(r.id, r.displayName);
+    }
+
+    return { customer, contacts, properties, plans, quotes, jobs, reviewsByJob, workerNameById };
+  }
+
+  // ── Home / digest: not modeled in this schema yet ──
   async getHome() {
     return seed.home;
   }
@@ -29,58 +113,253 @@ export class PostgresRepository implements Repository {
 
   // ── Customers ──
   async listCustomers(): Promise<CustomerListItem[]> {
-    const rows = await this.db.select().from(schema.customers);
-    return rows.map((r) => ({
-      id: r.id,
-      name: r.name,
-      location: r.location,
-      plan: r.plan,
-      status: r.status,
-      stage: r.stage,
-      lifetimeValue: r.lifetimeValue,
-      lastService: r.lastService,
-      nextService: r.nextService ?? undefined,
-      tags: r.tags,
-    }));
+    const customers = await this.db.select().from(schema.customers);
+    // Assemble each (N is small for dev; optimize with a join/view later).
+    const out: CustomerListItem[] = [];
+    for (const c of customers) {
+      const full = assembleCustomer(await this.bundleFor(c));
+      out.push({
+        id: full.id,
+        name: full.name,
+        location: full.location,
+        plan: full.plan,
+        status: full.status,
+        stage: full.stage,
+        lifetimeValue: full.lifetimeValue,
+        lastService: full.lastService,
+        nextService: full.nextService,
+        tags: full.tags,
+      });
+    }
+    return out;
   }
 
   async getCustomer(id: string): Promise<Customer | undefined> {
-    const [r] = await this.db.select().from(schema.customers).where(eq(schema.customers.id, id));
-    if (!r) return undefined;
-    return {
-      id: r.id,
-      name: r.name,
-      phone: r.phone,
-      location: r.location,
-      plan: r.plan,
-      status: r.status,
-      stage: r.stage,
-      lifetimeValue: r.lifetimeValue,
-      lastService: r.lastService,
-      nextService: r.nextService ?? undefined,
-      tags: r.tags,
-      summary: r.summary,
-      provenance: r.provenance,
-      homeDetails: r.homeDetails as Customer["homeDetails"],
-      nextStep: (r.nextStep as Customer["nextStep"]) ?? undefined,
-      goodToKnow: r.goodToKnow,
-      activity: r.activity as Customer["activity"],
-    };
+    const c = await this.resolveCustomer(id);
+    if (!c) return undefined;
+    return assembleCustomer(await this.bundleFor(c));
   }
 
-  // ── Partners ──
+  async createCustomer(input: CustomerCreate): Promise<Customer> {
+    const tenantId = await this.tenantId();
+    const [c] = await this.db
+      .insert(schema.customers)
+      .values({
+        tenantId,
+        displayName: input.name,
+        firstName: input.firstName,
+        lastName: input.lastName,
+        companyName: input.companyName,
+        status: input.status ?? "lead",
+        lifecycleStage: input.stage ?? "new-lead",
+        preferredContact: input.preferredContact,
+        source: input.source,
+        summary: input.summary ?? "",
+        tags: input.tags ?? [],
+        notes: input.notes,
+      })
+      .returning();
+
+    // Optional first contacts for a usable record in one POST.
+    if (input.mobile) {
+      await this.db.insert(schema.customerContacts).values({
+        tenantId,
+        customerId: c.id,
+        kind: "mobile",
+        value: input.mobile,
+        isPrimary: true,
+      });
+    }
+    if (input.email) {
+      await this.db.insert(schema.customerContacts).values({
+        tenantId,
+        customerId: c.id,
+        kind: "email",
+        value: input.email,
+        isPrimary: true,
+      });
+    }
+    return assembleCustomer(await this.bundleFor(c));
+  }
+
+  // ── Customer sub-resources ──
+  async addContact(customerId: string, input: ContactCreate): Promise<Contact | undefined> {
+    const c = await this.resolveCustomer(customerId);
+    if (!c) return undefined;
+    const [row] = await this.db
+      .insert(schema.customerContacts)
+      .values({
+        tenantId: c.tenantId,
+        customerId: c.id,
+        kind: input.kind,
+        value: input.value,
+        label: input.label,
+        isPrimary: input.isPrimary ?? false,
+        consentStatus: input.consentStatus ?? "unknown",
+        consentSource: input.consentSource,
+        consentAt: input.consentStatus === "opted_in" ? new Date() : undefined,
+      })
+      .returning();
+    return mapContact(row);
+  }
+
+  async addProperty(customerId: string, input: PropertyCreate): Promise<Property | undefined> {
+    const c = await this.resolveCustomer(customerId);
+    if (!c) return undefined;
+    const [row] = await this.db
+      .insert(schema.properties)
+      .values({
+        tenantId: c.tenantId,
+        customerId: c.id,
+        label: input.label,
+        addressLine1: input.addressLine1,
+        addressLine2: input.addressLine2,
+        city: input.city,
+        region: input.region,
+        postalCode: input.postalCode,
+        country: input.country ?? "US",
+        propertyType: input.propertyType,
+        bedrooms: input.bedrooms,
+        bathrooms: input.bathrooms,
+        squareFeet: input.squareFeet,
+        accessNotes: input.accessNotes,
+        isPrimary: input.isPrimary ?? false,
+      })
+      .returning();
+    return mapProperty(row);
+  }
+
+  async createPlan(customerId: string, input: PlanCreate): Promise<Plan | undefined> {
+    const c = await this.resolveCustomer(customerId);
+    if (!c) return undefined;
+    const [row] = await this.db
+      .insert(schema.plans)
+      .values({
+        tenantId: c.tenantId,
+        customerId: c.id,
+        propertyId: input.propertyId,
+        offeringId: input.offeringId,
+        name: input.name,
+        description: input.description,
+        serviceType: input.serviceType,
+        frequency: input.frequency,
+        status: input.status ?? "active",
+        priceCents: input.priceCents,
+        startDate: input.startDate,
+        endDate: input.endDate,
+      })
+      .returning();
+    return mapPlan(row);
+  }
+
+  async createQuote(customerId: string, input: QuoteCreate): Promise<Quote | undefined> {
+    const c = await this.resolveCustomer(customerId);
+    if (!c) return undefined;
+    const [row] = await this.db
+      .insert(schema.quotes)
+      .values({
+        tenantId: c.tenantId,
+        customerId: c.id,
+        propertyId: input.propertyId,
+        status: input.status ?? "draft",
+        serviceType: input.serviceType,
+        frequency: input.frequency,
+        amountCents: input.amountCents,
+        priceUnit: input.priceUnit ?? "per-visit",
+        validUntil: input.validUntil,
+        signal: input.signal ?? "info",
+        needsYou: input.needsYou ?? false,
+        detail: input.detail,
+      })
+      .returning();
+    return mapQuote(row);
+  }
+
+  async createJob(customerId: string, input: JobCreate): Promise<Job | undefined> {
+    const c = await this.resolveCustomer(customerId);
+    if (!c) return undefined;
+    const [row] = await this.db
+      .insert(schema.jobs)
+      .values({
+        tenantId: c.tenantId,
+        customerId: c.id,
+        propertyId: input.propertyId,
+        planId: input.planId,
+        quoteId: input.quoteId,
+        status: input.status ?? "scheduled",
+        serviceType: input.serviceType,
+        scheduledStart: input.scheduledStart ? new Date(input.scheduledStart) : undefined,
+        scheduledEnd: input.scheduledEnd ? new Date(input.scheduledEnd) : undefined,
+        durationMin: input.durationMin,
+        completedAt: input.completedAt ? new Date(input.completedAt) : undefined,
+        assigneeType: input.assigneeType,
+        assignedCleanerId: input.assignedCleanerId,
+        assignedPartnerId: input.assignedPartnerId,
+        priceCents: input.priceCents,
+      })
+      .returning();
+    const name =
+      row.assignedCleanerId || row.assignedPartnerId
+        ? await this.workerName(row.assignedCleanerId, row.assignedPartnerId)
+        : null;
+    return mapJob(row, undefined, name);
+  }
+
+  async addJobReview(
+    customerId: string,
+    jobId: string,
+    input: ReviewCreate,
+  ): Promise<Review | undefined> {
+    const c = await this.resolveCustomer(customerId);
+    if (!c) return undefined;
+    const [job] = await this.db
+      .select()
+      .from(schema.jobs)
+      .where(and(eq(schema.jobs.id, jobId), eq(schema.jobs.customerId, c.id)));
+    if (!job) return undefined;
+    const [row] = await this.db
+      .insert(schema.jobReviews)
+      .values({
+        tenantId: c.tenantId,
+        jobId: job.id,
+        customerId: c.id,
+        rating: input.rating,
+        reviewText: input.reviewText,
+        customerNote: input.customerNote,
+        reviewer: input.reviewer ?? "customer",
+        wouldRecommend: input.wouldRecommend,
+        reviewedCleanerId: job.assignedCleanerId,
+        reviewedPartnerId: job.assignedPartnerId,
+      })
+      .returning();
+    return mapReview(row);
+  }
+
+  private async workerName(cleanerId: string | null, partnerId: string | null): Promise<string | null> {
+    if (cleanerId) {
+      const [r] = await this.db.select().from(schema.cleaners).where(eq(schema.cleaners.id, cleanerId));
+      return r?.displayName ?? null;
+    }
+    if (partnerId) {
+      const [r] = await this.db.select().from(schema.partners).where(eq(schema.partners.id, partnerId));
+      return r?.displayName ?? null;
+    }
+    return null;
+  }
+
+  // ── Partners (list/detail; rollups derived) ──
   async listPartners(): Promise<PartnerListItem[]> {
     const rows = await this.db.select().from(schema.partners);
     return rows.map((r) => ({
       id: r.id,
-      name: r.name,
-      contact: r.contact,
-      location: r.location,
+      name: r.displayName,
+      contact: r.contactName ?? "",
+      location: r.location ?? "",
       type: r.type,
       stage: r.stage,
-      leadsGenerated: r.leadsGenerated,
-      jobsCovered: r.jobsCovered,
-      value: r.value,
+      leadsGenerated: 0,
+      jobsCovered: 0,
+      value: 0,
     }));
   }
 
@@ -89,104 +368,94 @@ export class PostgresRepository implements Repository {
     if (!r) return undefined;
     return {
       id: r.id,
-      name: r.name,
-      contact: r.contact,
-      location: r.location,
+      name: r.displayName,
+      contact: r.contactName ?? "",
+      location: r.location ?? "",
       type: r.type,
       stage: r.stage,
-      leadsGenerated: r.leadsGenerated,
-      jobsCovered: r.jobsCovered,
-      value: r.value,
-      since: r.since,
+      leadsGenerated: 0,
+      jobsCovered: 0,
+      value: 0,
+      since: r.since ?? "",
       summary: r.summary,
-      employment: r.employment as Partner["employment"],
-      activity: r.activity as Partner["activity"],
+      employment: { engagement: "", rate: "", coverage: "", insurance: "" },
+      activity: [],
     };
   }
 
-  // ── Pipeline (deals grouped into stages; summary from seed for now) ──
+  // ── Pipeline = quotes grouped by status (design Q1) ──
   async getPipeline(): Promise<Pipeline> {
-    const rows = await this.db.select().from(schema.deals);
+    const rows = await this.db.select().from(schema.quotes);
+    // Map quote statuses onto the UI's pipeline stage buckets.
     const stageMeta = seed.pipeline.stages.map((s) => ({ id: s.id, label: s.label, dot: s.dot }));
+    const statusToStage: Record<string, string> = {
+      draft: "new",
+      sent: "quote-sent",
+      "follow-up": "follow-up",
+      accepted: "booked",
+      declined: "booked",
+      expired: "new",
+    };
     const stages: PipelineStage[] = stageMeta.map((meta) => ({
       id: meta.id,
       label: meta.label,
       dot: meta.dot,
       deals: rows
-        .filter((d) => d.stageId === meta.id)
-        .map(
-          (d): Deal => ({
-            id: d.id,
-            stageId: d.stageId as DealStageId,
-            name: d.name,
-            price: d.price ?? undefined,
-            priceUnit: (d.priceUnit as Deal["priceUnit"]) ?? undefined,
-            detail: d.detail,
-            signal: d.signal,
-            chip: d.chip,
-            needsYou: d.needsYou,
-          }),
-        ),
+        .filter((q) => (statusToStage[q.status] ?? "new") === meta.id)
+        .map((q) => ({
+          id: q.id,
+          stageId: meta.id,
+          name: q.detail ?? "Quote",
+          price: q.amountCents != null ? Math.round(q.amountCents / 100) : undefined,
+          priceUnit: q.priceUnit === "per-visit" ? ("visit" as const) : ("flat" as const),
+          detail: q.detail ?? "",
+          signal: q.signal,
+          chip: q.status,
+          needsYou: q.needsYou,
+        })),
     }));
     return { summary: seed.pipeline.summary, stages };
   }
 
-  // ── Conversations ──
+  // ── Conversations: not modeled in this schema; serve from seed ──
   async listConversations(): Promise<ConvoListItem[]> {
-    // The list preview fields aren't fully modeled; serve from seed for now.
     return seed.conversationList;
   }
-
   async getConversation(id: string): Promise<ConversationDetail | undefined> {
-    const [c] = await this.db.select().from(schema.conversations).where(eq(schema.conversations.id, id));
-    if (!c) return undefined;
-    const entries = await this.db
-      .select()
-      .from(schema.conversationEntries)
-      .where(eq(schema.conversationEntries.conversationId, id))
-      .orderBy(asc(schema.conversationEntries.occurredAt));
-
-    const seedDetail = seed.conversations[id];
-    return {
-      id: c.id,
-      name: c.name,
-      phone: c.phone,
-      location: c.location,
-      flag: c.flag as ConversationDetail["flag"],
-      suggestedReply: c.suggestedReply,
-      recordUpdates: c.recordUpdates as ConversationDetail["recordUpdates"],
-      recordNote: c.recordNote ?? undefined,
-      entries: entries.map(
-        (e): ThreadEntry => ({
-          id: e.id.includes(":") ? e.id.split(":")[1] : e.id,
-          kind: e.kind as ThreadEntry["kind"],
-          text: e.text,
-          meta: e.meta ?? undefined,
-          chips: e.chips,
-          hasTranscript: e.hasTranscript,
-          dayDivider: e.dayDivider ?? undefined,
-        }),
-      ),
-      // The linked-customer snapshot isn't its own table yet; reuse seed shape.
-      customer: seedDetail?.customer ?? { home: "", service: "", property: "", estValue: "" },
-    };
+    return seed.conversations[id];
   }
 
-  // ── Calendar (appointments from table; summary from seed) ──
+  // ── Calendar: appointments from the new schema, bucketed into the week ──
   async getCalendarWeek(): Promise<CalendarWeek> {
-    const rows = await this.db.select().from(schema.appointments).orderBy(asc(schema.appointments.dayIndex));
+    const rows = await this.db
+      .select()
+      .from(schema.appointments)
+      .orderBy(asc(schema.appointments.startsAt));
+    // Monday-anchored week index from the real datetime.
+    const kindMap: Record<string, CalendarWeek["appointments"][number]["kind"]> = {
+      clean: "clean",
+      walkthrough: "walkthrough",
+      "quote-visit": "quote",
+      call: "partner",
+      other: "partner",
+    };
     return {
       weekDays: seed.calendarWeek.weekDays,
       summary: seed.calendarWeek.summary,
-      appointments: rows.map((a) => ({
-        id: a.id,
-        dayIndex: a.dayIndex,
-        start: a.start,
-        durationMin: a.durationMin,
-        title: a.title,
-        detail: a.detail,
-        kind: a.kind as CalendarWeek["appointments"][number]["kind"],
-      })),
+      appointments: rows.map((a) => {
+        const d = a.startsAt;
+        const dayIndex = (d.getDay() + 6) % 7; // 0 = Mon
+        const start = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+        return {
+          id: a.id,
+          dayIndex,
+          start,
+          durationMin: a.durationMin ?? 60,
+          title: a.title,
+          detail: a.detail ?? "",
+          kind: kindMap[a.kind] ?? "partner",
+        };
+      }),
     };
   }
 }
