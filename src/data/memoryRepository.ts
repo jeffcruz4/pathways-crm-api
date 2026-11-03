@@ -12,10 +12,13 @@ import {
   mapQuote,
   mapReview,
   mapJob,
+  partnerListItem,
+  partnerDetail,
   type CustomerBundle,
 } from "./assemble.js";
 import type { Customer, CustomerListItem, CustomerCreate } from "../domain/customer.js";
-import type { PartnerListItem } from "../domain/partner.js";
+import type { Partner, PartnerListItem, PartnerCreate } from "../domain/partner.js";
+import type { Cleaner, CleanerListItem, CleanerCreate } from "../domain/cleaner.js";
 import type {
   Contact,
   ContactCreate,
@@ -38,6 +41,8 @@ type PlanRow = InferSelectModel<typeof schema.plans>;
 type QuoteRow = InferSelectModel<typeof schema.quotes>;
 type JobRow = InferSelectModel<typeof schema.jobs>;
 type ReviewRow = InferSelectModel<typeof schema.jobReviews>;
+type CleanerRow = InferSelectModel<typeof schema.cleaners>;
+type PartnerRow = InferSelectModel<typeof schema.partners>;
 
 const nowTs = () => new Date();
 
@@ -55,10 +60,14 @@ export class MemoryRepository implements Repository {
   private quotes: QuoteRow[] = [];
   private jobs: JobRow[] = [];
   private reviews: ReviewRow[] = [];
+  private cleaners: CleanerRow[] = [];
+  private partners: PartnerRow[] = [];
   private workerNames = new Map<string, string>();
   private readonly tenantId = rel.tenant.id!;
 
   constructor() {
+    this.cleaners = rel.cleaners.map((c) => this.fillCleaner(c));
+    this.partners = rel.partners.map((p) => this.fillPartner(p));
     // Normalize insert-model seed rows into full select-model rows.
     this.customers = rel.customers.map((c) => this.fillCustomer(c));
     this.contacts = rel.contacts.map((c) => this.fillContact(c));
@@ -226,6 +235,49 @@ export class MemoryRepository implements Repository {
       reviewedPartnerId: r.reviewedPartnerId ?? null,
       createdAt: nowTs(),
       updatedAt: nowTs(),
+    };
+  }
+  private fillCleaner(c: (typeof rel.cleaners)[number]): CleanerRow {
+    return {
+      id: c.id ?? randomUUID(),
+      tenantId: c.tenantId,
+      slug: c.slug ?? null,
+      displayName: c.displayName,
+      firstName: c.firstName ?? null,
+      lastName: c.lastName ?? null,
+      email: c.email ?? null,
+      phone: c.phone ?? null,
+      status: c.status ?? "active",
+      hiredOn: c.hiredOn ?? null,
+      employmentType: c.employmentType ?? "full-time",
+      skills: c.skills ?? [],
+      homeBase: c.homeBase ?? null,
+      notes: c.notes ?? null,
+      createdAt: nowTs(),
+      updatedAt: nowTs(),
+      archivedAt: null,
+    };
+  }
+  private fillPartner(p: (typeof rel.partners)[number]): PartnerRow {
+    return {
+      id: p.id ?? randomUUID(),
+      tenantId: p.tenantId,
+      slug: p.slug ?? null,
+      displayName: p.displayName,
+      type: p.type,
+      stage: p.stage ?? "prospect",
+      contactName: p.contactName ?? null,
+      email: p.email ?? null,
+      phone: p.phone ?? null,
+      location: p.location ?? null,
+      since: p.since ?? null,
+      skills: p.skills ?? [],
+      commissionBps: p.commissionBps ?? null,
+      summary: p.summary ?? "",
+      notes: p.notes ?? null,
+      createdAt: nowTs(),
+      updatedAt: nowTs(),
+      archivedAt: null,
     };
   }
 
@@ -457,36 +509,74 @@ export class MemoryRepository implements Repository {
 
   // ── Partners ──
   async listPartners(): Promise<PartnerListItem[]> {
-    return rel.partners.map((p) => ({
-      id: p.id!,
-      name: p.displayName,
-      contact: p.contactName ?? "",
-      location: p.location ?? "",
-      type: p.type,
-      stage: p.stage ?? "prospect",
-      leadsGenerated: 0,
-      jobsCovered: 0,
-      value: 0,
-    }));
+    return this.partners.map(partnerListItem);
   }
 
   async getPartner(id: string) {
-    const p = rel.partners.find((x) => x.id === id);
-    if (!p) return undefined;
+    const p = this.partners.find((x) => x.id === id);
+    return p ? partnerDetail(p) : undefined;
+  }
+
+  async createPartner(input: PartnerCreate): Promise<Partner> {
+    const row = this.fillPartner({
+      tenantId: this.tenantId,
+      displayName: input.name,
+      type: input.type,
+      stage: input.stage ?? "prospect",
+      contactName: input.contactName,
+      email: input.email,
+      phone: input.phone,
+      location: input.location,
+      since: input.since,
+      skills: input.skills ?? [],
+      commissionBps: input.commissionBps,
+      summary: input.summary ?? "",
+      notes: input.notes,
+    });
+    this.partners.push(row);
+    this.workerNames.set(row.id, row.displayName);
+    return partnerDetail(row);
+  }
+
+  // ── Cleaners ──
+  async listCleaners(): Promise<CleanerListItem[]> {
+    return this.cleaners.map((r) => ({
+      id: r.id,
+      name: r.displayName,
+      status: r.status,
+      employmentType: r.employmentType,
+      skills: r.skills,
+      homeBase: r.homeBase,
+    }));
+  }
+
+  async createCleaner(input: CleanerCreate): Promise<Cleaner> {
+    const row = this.fillCleaner({
+      tenantId: this.tenantId,
+      displayName: input.name,
+      firstName: input.firstName,
+      lastName: input.lastName,
+      email: input.email,
+      phone: input.phone,
+      status: input.status ?? "active",
+      employmentType: input.employmentType ?? "full-time",
+      hiredOn: input.hiredOn,
+      skills: input.skills ?? [],
+      homeBase: input.homeBase,
+      notes: input.notes,
+    });
+    this.cleaners.push(row);
+    this.workerNames.set(row.id, row.displayName);
     return {
-      id: p.id!,
-      name: p.displayName,
-      contact: p.contactName ?? "",
-      location: p.location ?? "",
-      type: p.type,
-      stage: p.stage ?? "prospect",
-      leadsGenerated: 0,
-      jobsCovered: 0,
-      value: 0,
-      since: p.since ?? "",
-      summary: p.summary ?? "",
-      employment: { engagement: "", rate: "", coverage: "", insurance: "" },
-      activity: [],
+      id: row.id,
+      name: row.displayName,
+      email: row.email,
+      phone: row.phone,
+      status: row.status,
+      employmentType: row.employmentType,
+      hiredOn: row.hiredOn,
+      skills: row.skills,
+      homeBase: row.homeBase,
     };
   }
 

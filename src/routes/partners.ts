@@ -1,5 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { Repository } from "../data/index.js";
+import { parseBody } from "./validate.js";
+import { PartnerCreate } from "../domain/partner.js";
 
 export function partnerRoutes(repo: Repository) {
   return async function (app: FastifyInstance) {
@@ -14,6 +16,13 @@ export function partnerRoutes(repo: Repository) {
         return reply.code(404).send({ error: "not_found", message: "Partner not found" });
       }
       return partner;
+    });
+
+    app.post("/partners", async (req, reply) => {
+      const input = parseBody(PartnerCreate, req.body, reply);
+      if (!input) return;
+      const partner = await repo.createPartner(input);
+      return reply.code(201).send(partner);
     });
   };
 }

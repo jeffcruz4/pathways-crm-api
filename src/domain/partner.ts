@@ -46,7 +46,24 @@ export const PartnerListItem = Partner.pick({
   value: true,
 });
 
+/** Create-input for POST /partners (identity + engagement; rollups derived). */
+export const PartnerCreate = z.object({
+  name: z.string().min(1),
+  type: PartnerType,
+  stage: PartnerStage.optional(),
+  contactName: z.string().optional(),
+  email: z.string().optional(),
+  phone: z.string().optional(),
+  location: z.string().optional(),
+  since: z.string().optional(),
+  skills: z.array(z.string()).optional(),
+  commissionBps: z.number().int().optional(),
+  summary: z.string().optional(),
+  notes: z.string().optional(),
+});
+
 export type Partner = z.infer<typeof Partner>;
+export type PartnerCreate = z.infer<typeof PartnerCreate>;
 export type PartnerListItem = z.infer<typeof PartnerListItem>;
 export type PartnerType = z.infer<typeof PartnerType>;
 export type PartnerStage = z.infer<typeof PartnerStage>;
