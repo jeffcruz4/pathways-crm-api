@@ -1,6 +1,7 @@
 import type { Customer, CustomerListItem, CustomerCreate } from "../domain/customer.js";
 import type { Partner, PartnerListItem, PartnerCreate } from "../domain/partner.js";
 import type { TeamMember, TeamMemberListItem, TeamMemberCreate } from "../domain/team-member.js";
+import type { CustomerStats } from "../domain/customer-stats.js";
 import type { Pipeline } from "../domain/deal.js";
 import type { ConvoListItem, ConversationDetail } from "../domain/conversation.js";
 import type { CalendarWeek, Digest } from "../domain/calendar.js";
@@ -36,6 +37,7 @@ export interface Repository {
 
   // Customers
   listCustomers(): Promise<CustomerListItem[]>;
+  getCustomerStats(): Promise<CustomerStats>;
   getCustomer(id: string): Promise<Customer | undefined>;
   createCustomer(input: CustomerCreate): Promise<Customer>;
 

@@ -20,6 +20,12 @@ export function customerRoutes(repo: Repository) {
       return { items };
     });
 
+    // Aggregate dashboard stats. Static route is matched before `/customers/:id`
+    // by Fastify's router, so "stats" is never treated as an id.
+    app.get("/customers/stats", async () => {
+      return repo.getCustomerStats();
+    });
+
     app.get<{ Params: { id: string } }>("/customers/:id", async (req, reply) => {
       const customer = await repo.getCustomer(req.params.id);
       if (!customer) {

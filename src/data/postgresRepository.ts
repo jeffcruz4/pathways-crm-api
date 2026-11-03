@@ -6,6 +6,7 @@ import * as seed from "./seed.js";
 import type { InferSelectModel } from "drizzle-orm";
 import {
   assembleCustomer,
+  assembleCustomerStats,
   mapContact,
   mapProperty,
   mapPlan,
@@ -21,6 +22,7 @@ import {
 import type { Customer, CustomerListItem, CustomerCreate } from "../domain/customer.js";
 import type { Partner, PartnerListItem, PartnerCreate } from "../domain/partner.js";
 import type { TeamMember, TeamMemberListItem, TeamMemberCreate } from "../domain/team-member.js";
+import type { CustomerStats } from "../domain/customer-stats.js";
 import type { Pipeline, PipelineStage } from "../domain/deal.js";
 import type { ConvoListItem, ConversationDetail } from "../domain/conversation.js";
 import type { CalendarWeek } from "../domain/calendar.js";
@@ -142,6 +144,14 @@ export class PostgresRepository implements Repository {
       });
     }
     return out;
+  }
+
+  async getCustomerStats(): Promise<CustomerStats> {
+    const [customers, jobs] = await Promise.all([
+      this.db.select().from(schema.customers),
+      this.db.select().from(schema.jobs),
+    ]);
+    return assembleCustomerStats(customers, jobs);
   }
 
   async getCustomer(id: string): Promise<Customer | undefined> {

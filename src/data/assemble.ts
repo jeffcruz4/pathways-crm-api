@@ -10,6 +10,7 @@ import type { InferSelectModel } from "drizzle-orm";
 import * as schema from "../db/schema.js";
 import { formatMoney } from "../domain/money.js";
 import type { Customer } from "../domain/customer.js";
+import type { CustomerStats } from "../domain/customer-stats.js";
 import type {
   Contact,
   Property,
@@ -308,5 +309,100 @@ export function assembleCustomer(b: CustomerBundle, now = new Date()): Customer 
     plans: b.plans.map(mapPlan),
     quotes: b.quotes.map(mapQuote),
     jobs,
+  };
+}
+
+// ── Customer dashboard stats (Q6 — computed on read) ──
+
+const MONTH_LABELS = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+/** Local-time YYYY-MM-DD key for a date (trend buckets are calendar days). */
+function dayKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/** Local-time YYYY-MM key for a date. */
+function monthKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/**
+ * Assemble the Customers-screen dashboard stats from customer + job rows.
+ * Pure: both repositories pass their rows in and get the same result.
+ *   - `signupsTrend`: one point per day for the trailing 90 days (zero-filled).
+ *   - `revenueTrend`: one point per month for the trailing 6 months (incl. now),
+ *     summing completed jobs' prices by completion month.
+ */
+export function assembleCustomerStats(
+  customers: CustomerRow[],
+  jobs: JobRow[],
+  now = new Date(),
+): CustomerStats {
+  const live = customers.filter((c) => !c.archivedAt);
+
+  // ── Status counts ──
+  const counts = { total: live.length, active: 0, lead: 0, lapsed: 0 };
+  for (const c of live) {
+    if (c.status === "active") counts.active++;
+    else if (c.status === "lead") counts.lead++;
+    else if (c.status === "lapsed") counts.lapsed++;
+  }
+
+  // ── Signups trend: trailing 90 days, zero-filled by day ──
+  const signupByDay = new Map<string, number>();
+  for (const c of live) {
+    if (!c.createdAt) continue;
+    signupByDay.set(dayKey(c.createdAt), (signupByDay.get(dayKey(c.createdAt)) ?? 0) + 1);
+  }
+  const signupsTrend: CustomerStats["signupsTrend"] = [];
+  for (let i = 89; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    const key = dayKey(d);
+    signupsTrend.push({ date: key, count: signupByDay.get(key) ?? 0 });
+  }
+
+  // ── Revenue trend: trailing 6 months of completed-job revenue ──
+  const liveJobs = jobs.filter((j) => !j.archivedAt);
+  const completed = liveJobs.filter((j) => j.status === "completed");
+  const revenueByMonth = new Map<string, number>();
+  for (const j of completed) {
+    if (!j.completedAt) continue;
+    const key = monthKey(j.completedAt);
+    revenueByMonth.set(key, (revenueByMonth.get(key) ?? 0) + (j.priceCents ?? 0));
+  }
+  const revenueTrend: CustomerStats["revenueTrend"] = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = monthKey(d);
+    revenueTrend.push({
+      month: key,
+      label: MONTH_LABELS[d.getMonth()],
+      revenue: formatMoney(revenueByMonth.get(key) ?? 0),
+    });
+  }
+
+  // ── Lifetime value (all completed) + per-customer average ──
+  const ltvCents = completed.reduce((sum, j) => sum + (j.priceCents ?? 0), 0);
+  const avgCents = live.length ? Math.round(ltvCents / live.length) : 0;
+
+  // ── Job mix: pending (scheduled/in-progress) vs completed ──
+  const pending = liveJobs.filter(
+    (j) => j.status === "scheduled" || j.status === "in-progress",
+  ).length;
+
+  return {
+    counts,
+    lifetimeValue: formatMoney(ltvCents),
+    averageLifetimeValue: formatMoney(avgCents),
+    signupsTrend,
+    revenueTrend,
+    jobMix: { pending, completed: completed.length },
   };
 }

@@ -62,14 +62,16 @@ export const serviceOfferings: OfferingIns[] = [
 ];
 
 // ── Customers ──
+// `createdAt` is spread across the trailing ~6 months so the signups trend and
+// status mix look real on the dashboard. Recent leads cluster in the last 90d.
 export const customers: CustomerIns[] = [
-  { id: cid(1), tenantId: TENANT, slug: "tom-becker", displayName: "Tom Becker", firstName: "Tom", lastName: "Becker", status: "lead", lifecycleStage: "quote", source: "Inbound call", tags: ["New lead", "Biweekly", "2 dogs"], provenance: "Cori built this profile from a 4m 12s call yesterday at 4:52 PM.", summary: "Tom wants biweekly cleaning for his 2,400 sq ft home — 4 bedrooms, 3 bathrooms, two friendly dogs. He'd like to start with a deep clean, and Thursday afternoons work best.", goodToKnow: ["Two friendly dogs — keep the gate closed", "Works from home, so no key or lockbox", "Wants to start with a deep clean"] },
-  { id: cid(2), tenantId: TENANT, slug: "gloria-hynes", displayName: "Gloria Hynes", firstName: "Gloria", lastName: "Hynes", status: "active", lifecycleStage: "recurring", source: "Referral", tags: ["Active", "Weekly"], provenance: "Profile enriched by Cori across 14 calls and texts.", summary: "Gloria is a weekly standard-clean customer in Swedesboro, with us since March. Reliable, pays on time, prefers morning visits.", goodToKnow: ["Prefers morning visits", "Spare key under the mat (left side)"] },
-  { id: cid(3), tenantId: TENANT, slug: "marcus-reed", displayName: "Marcus Reed", status: "active", lifecycleStage: "recurring", tags: ["Active", "Weekly"], summary: "Weekly customer in Mullica Hill, highest lifetime value in the book." },
-  { id: cid(4), tenantId: TENANT, slug: "the-porters", displayName: "The Porters", status: "lead", lifecycleStage: "quote", tags: ["Lead", "Biweekly"], summary: "Quote sent for biweekly cleaning; viewed twice, no reply in 6 days." },
-  { id: cid(5), tenantId: TENANT, slug: "rachel-owens", displayName: "Rachel Owens", status: "lead", lifecycleStage: "quote", tags: ["Lead", "Move-out"], summary: "Selling her home, needs a move-out clean once she knows her closing date." },
-  { id: cid(6), tenantId: TENANT, slug: "dwayne-foster", displayName: "Dwayne Foster", status: "lapsed", lifecycleStage: "recurring", tags: ["Lapsed"], summary: "One-time deep clean customer from the spring; hasn't rebooked." },
-  { id: cid(7), tenantId: TENANT, slug: "gina-alvarez", displayName: "Gina Alvarez", status: "active", lifecycleStage: "booked", referredByPartnerId: nid(2), tags: ["Active"], summary: "Move-out clean customer; also sending us neighbor referrals." },
+  { id: cid(1), tenantId: TENANT, slug: "tom-becker", displayName: "Tom Becker", firstName: "Tom", lastName: "Becker", status: "lead", lifecycleStage: "quote", source: "Inbound call", createdAt: daysFromNow(-2), tags: ["New lead", "Biweekly", "2 dogs"], provenance: "Cori built this profile from a 4m 12s call yesterday at 4:52 PM.", summary: "Tom wants biweekly cleaning for his 2,400 sq ft home — 4 bedrooms, 3 bathrooms, two friendly dogs. He'd like to start with a deep clean, and Thursday afternoons work best.", goodToKnow: ["Two friendly dogs — keep the gate closed", "Works from home, so no key or lockbox", "Wants to start with a deep clean"] },
+  { id: cid(2), tenantId: TENANT, slug: "gloria-hynes", displayName: "Gloria Hynes", firstName: "Gloria", lastName: "Hynes", status: "active", lifecycleStage: "recurring", source: "Referral", createdAt: daysFromNow(-240), tags: ["Active", "Weekly"], provenance: "Profile enriched by Cori across 14 calls and texts.", summary: "Gloria is a weekly standard-clean customer in Swedesboro, with us since March. Reliable, pays on time, prefers morning visits.", goodToKnow: ["Prefers morning visits", "Spare key under the mat (left side)"] },
+  { id: cid(3), tenantId: TENANT, slug: "marcus-reed", displayName: "Marcus Reed", status: "active", lifecycleStage: "recurring", createdAt: daysFromNow(-360), tags: ["Active", "Weekly"], summary: "Weekly customer in Mullica Hill, highest lifetime value in the book." },
+  { id: cid(4), tenantId: TENANT, slug: "the-porters", displayName: "The Porters", status: "lead", lifecycleStage: "quote", createdAt: daysFromNow(-6), tags: ["Lead", "Biweekly"], summary: "Quote sent for biweekly cleaning; viewed twice, no reply in 6 days." },
+  { id: cid(5), tenantId: TENANT, slug: "rachel-owens", displayName: "Rachel Owens", status: "lead", lifecycleStage: "quote", createdAt: daysFromNow(-18), tags: ["Lead", "Move-out"], summary: "Selling her home, needs a move-out clean once she knows her closing date." },
+  { id: cid(6), tenantId: TENANT, slug: "dwayne-foster", displayName: "Dwayne Foster", status: "lapsed", lifecycleStage: "recurring", createdAt: daysFromNow(-150), tags: ["Lapsed"], summary: "One-time deep clean customer from the spring; hasn't rebooked." },
+  { id: cid(7), tenantId: TENANT, slug: "gina-alvarez", displayName: "Gina Alvarez", status: "active", lifecycleStage: "booked", referredByPartnerId: nid(2), createdAt: daysFromNow(-55), tags: ["Active"], summary: "Move-out clean customer; also sending us neighbor referrals." },
 ];
 
 export const contacts: ContactIns[] = [
@@ -105,19 +107,38 @@ export const quotes: QuoteIns[] = [
   { id: qid(4), tenantId: TENANT, customerId: cid(7), propertyId: pid(7), status: "accepted", serviceType: "move-out", frequency: "one-time", amountCents: 28000, priceUnit: "flat", signal: "info", needsYou: false, detail: "Move-out clean · Pitman", sentAt: daysFromNow(-10), decidedAt: daysFromNow(-8) },
 ];
 
+// Completed jobs are spread across the trailing ~6 months so the revenue trend
+// and job-mix charts have real shape. Recurring customers (Gloria weekly,
+// Marcus weekly) get a steady cadence; one-offs land in specific months.
 export const jobs: JobIns[] = [
-  // Gloria — recurring weekly, several completed + one upcoming.
+  // ── Gloria — recurring weekly standard clean, ~26 weeks of history ──
   { id: jid(1), tenantId: TENANT, customerId: cid(2), propertyId: pid(2), planId: lid(1), status: "completed", serviceType: "standard", scheduledStart: daysFromNow(-7), completedAt: daysFromNow(-7), assigneeType: "team_member", assignedTeamMemberId: eid(1), priceCents: 12000 },
   { id: jid(2), tenantId: TENANT, customerId: cid(2), propertyId: pid(2), planId: lid(1), status: "completed", serviceType: "standard", scheduledStart: daysFromNow(0), completedAt: daysFromNow(0), assigneeType: "team_member", assignedTeamMemberId: eid(1), priceCents: 12000 },
   { id: jid(3), tenantId: TENANT, customerId: cid(2), propertyId: pid(2), planId: lid(1), status: "scheduled", serviceType: "standard", scheduledStart: daysFromNow(7), assigneeType: "team_member", assignedTeamMemberId: eid(1), priceCents: 12000 },
-  // Marcus — recurring weekly, high LTV.
+  { id: jid(10), tenantId: TENANT, customerId: cid(2), propertyId: pid(2), planId: lid(1), status: "completed", serviceType: "standard", scheduledStart: daysFromNow(-14), completedAt: daysFromNow(-14), assigneeType: "team_member", assignedTeamMemberId: eid(1), priceCents: 12000 },
+  { id: jid(11), tenantId: TENANT, customerId: cid(2), propertyId: pid(2), planId: lid(1), status: "completed", serviceType: "standard", scheduledStart: daysFromNow(-21), completedAt: daysFromNow(-21), assigneeType: "team_member", assignedTeamMemberId: eid(1), priceCents: 12000 },
+  { id: jid(12), tenantId: TENANT, customerId: cid(2), propertyId: pid(2), planId: lid(1), status: "completed", serviceType: "standard", scheduledStart: daysFromNow(-35), completedAt: daysFromNow(-35), assigneeType: "team_member", assignedTeamMemberId: eid(1), priceCents: 12000 },
+  { id: jid(13), tenantId: TENANT, customerId: cid(2), propertyId: pid(2), planId: lid(1), status: "completed", serviceType: "standard", scheduledStart: daysFromNow(-49), completedAt: daysFromNow(-49), assigneeType: "team_member", assignedTeamMemberId: eid(1), priceCents: 12000 },
+  { id: jid(14), tenantId: TENANT, customerId: cid(2), propertyId: pid(2), planId: lid(1), status: "completed", serviceType: "standard", scheduledStart: daysFromNow(-63), completedAt: daysFromNow(-63), assigneeType: "team_member", assignedTeamMemberId: eid(1), priceCents: 12000 },
+  { id: jid(15), tenantId: TENANT, customerId: cid(2), propertyId: pid(2), planId: lid(1), status: "completed", serviceType: "standard", scheduledStart: daysFromNow(-84), completedAt: daysFromNow(-84), assigneeType: "team_member", assignedTeamMemberId: eid(1), priceCents: 12000 },
+  { id: jid(16), tenantId: TENANT, customerId: cid(2), propertyId: pid(2), planId: lid(1), status: "completed", serviceType: "standard", scheduledStart: daysFromNow(-112), completedAt: daysFromNow(-112), assigneeType: "team_member", assignedTeamMemberId: eid(1), priceCents: 11500 },
+  { id: jid(17), tenantId: TENANT, customerId: cid(2), propertyId: pid(2), planId: lid(1), status: "completed", serviceType: "standard", scheduledStart: daysFromNow(-140), completedAt: daysFromNow(-140), assigneeType: "team_member", assignedTeamMemberId: eid(1), priceCents: 11500 },
+  { id: jid(18), tenantId: TENANT, customerId: cid(2), propertyId: pid(2), planId: lid(1), status: "completed", serviceType: "standard", scheduledStart: daysFromNow(-168), completedAt: daysFromNow(-168), assigneeType: "team_member", assignedTeamMemberId: eid(1), priceCents: 11500 },
+  // ── Marcus — recurring weekly, higher price point ──
   { id: jid(4), tenantId: TENANT, customerId: cid(3), propertyId: pid(3), planId: lid(2), status: "completed", serviceType: "standard", scheduledStart: daysFromNow(-5), completedAt: daysFromNow(-5), assigneeType: "team_member", assignedTeamMemberId: eid(2), priceCents: 14000 },
   { id: jid(5), tenantId: TENANT, customerId: cid(3), propertyId: pid(3), planId: lid(2), status: "scheduled", serviceType: "standard", scheduledStart: daysFromNow(2), assigneeType: "team_member", assignedTeamMemberId: eid(2), priceCents: 14000 },
-  // Dwayne — one lapsed one-time deep (contractor).
+  { id: jid(20), tenantId: TENANT, customerId: cid(3), propertyId: pid(3), planId: lid(2), status: "completed", serviceType: "standard", scheduledStart: daysFromNow(-19), completedAt: daysFromNow(-19), assigneeType: "team_member", assignedTeamMemberId: eid(2), priceCents: 14000 },
+  { id: jid(21), tenantId: TENANT, customerId: cid(3), propertyId: pid(3), planId: lid(2), status: "completed", serviceType: "standard", scheduledStart: daysFromNow(-40), completedAt: daysFromNow(-40), assigneeType: "team_member", assignedTeamMemberId: eid(2), priceCents: 14000 },
+  { id: jid(22), tenantId: TENANT, customerId: cid(3), propertyId: pid(3), planId: lid(2), status: "completed", serviceType: "standard", scheduledStart: daysFromNow(-68), completedAt: daysFromNow(-68), assigneeType: "team_member", assignedTeamMemberId: eid(2), priceCents: 14000 },
+  { id: jid(23), tenantId: TENANT, customerId: cid(3), propertyId: pid(3), planId: lid(2), status: "completed", serviceType: "standard", scheduledStart: daysFromNow(-96), completedAt: daysFromNow(-96), assigneeType: "team_member", assignedTeamMemberId: eid(2), priceCents: 13500 },
+  { id: jid(24), tenantId: TENANT, customerId: cid(3), propertyId: pid(3), planId: lid(2), status: "completed", serviceType: "standard", scheduledStart: daysFromNow(-124), completedAt: daysFromNow(-124), assigneeType: "team_member", assignedTeamMemberId: eid(2), priceCents: 13500 },
+  { id: jid(25), tenantId: TENANT, customerId: cid(3), propertyId: pid(3), planId: lid(2), status: "completed", serviceType: "standard", scheduledStart: daysFromNow(-152), completedAt: daysFromNow(-152), assigneeType: "team_member", assignedTeamMemberId: eid(2), priceCents: 13500 },
+  // ── Dwayne — one lapsed one-time deep (contractor), ~4 months ago ──
   { id: jid(6), tenantId: TENANT, customerId: cid(6), propertyId: pid(6), status: "completed", serviceType: "deep", scheduledStart: daysFromNow(-120), completedAt: daysFromNow(-120), assigneeType: "partner", assignedPartnerId: nid(1), priceCents: 82000 },
-  // Gina — accepted move-out, booked + completed.
+  // ── Gina — accepted move-out, completed + upcoming recurring ──
   { id: jid(7), tenantId: TENANT, customerId: cid(7), propertyId: pid(7), quoteId: qid(4), status: "completed", serviceType: "move-out", scheduledStart: daysFromNow(-7), completedAt: daysFromNow(-7), assigneeType: "partner", assignedPartnerId: nid(1), priceCents: 28000 },
   { id: jid(8), tenantId: TENANT, customerId: cid(7), propertyId: pid(7), status: "scheduled", serviceType: "standard", scheduledStart: daysFromNow(5), assigneeType: "team_member", assignedTeamMemberId: eid(1), priceCents: 13000 },
+  { id: jid(26), tenantId: TENANT, customerId: cid(7), propertyId: pid(7), status: "completed", serviceType: "standard", scheduledStart: daysFromNow(-30), completedAt: daysFromNow(-30), assigneeType: "team_member", assignedTeamMemberId: eid(1), priceCents: 13000 },
 ];
 
 export const reviews: ReviewIns[] = [

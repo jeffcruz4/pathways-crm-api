@@ -6,6 +6,7 @@ import * as seed from "./seed.js";
 import * as rel from "./seedRelational.js";
 import {
   assembleCustomer,
+  assembleCustomerStats,
   mapContact,
   mapProperty,
   mapPlan,
@@ -19,6 +20,7 @@ import {
   type CustomerBundle,
 } from "./assemble.js";
 import type { Customer, CustomerListItem, CustomerCreate } from "../domain/customer.js";
+import type { CustomerStats } from "../domain/customer-stats.js";
 import type { Partner, PartnerListItem, PartnerCreate } from "../domain/partner.js";
 import type { TeamMember, TeamMemberListItem, TeamMemberCreate } from "../domain/team-member.js";
 import type {
@@ -113,7 +115,7 @@ export class MemoryRepository implements Repository {
       goodToKnow: c.goodToKnow ?? [],
       tags: c.tags ?? [],
       notes: c.notes ?? null,
-      createdAt: nowTs(),
+      createdAt: c.createdAt instanceof Date ? c.createdAt : nowTs(),
       updatedAt: nowTs(),
       archivedAt: null,
     };
@@ -389,6 +391,10 @@ export class MemoryRepository implements Repository {
         tags: full.tags,
       };
     });
+  }
+
+  async getCustomerStats(): Promise<CustomerStats> {
+    return assembleCustomerStats(this.customers, this.jobs);
   }
 
   async getCustomer(id: string): Promise<Customer | undefined> {
