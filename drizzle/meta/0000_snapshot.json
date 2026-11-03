@@ -1,5 +1,5 @@
 {
-  "id": "e455de24-c35b-4011-a30f-88d2bc4822e1",
+  "id": "ef7dac23-8e68-414b-9496-3c31610b0bf3",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -97,8 +97,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "assigned_cleaner_id": {
-          "name": "assigned_cleaner_id",
+        "assigned_team_member_id": {
+          "name": "assigned_team_member_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
@@ -240,12 +240,12 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "appointments_assigned_cleaner_id_cleaners_id_fk": {
-          "name": "appointments_assigned_cleaner_id_cleaners_id_fk",
+        "appointments_assigned_team_member_id_team_members_id_fk": {
+          "name": "appointments_assigned_team_member_id_team_members_id_fk",
           "tableFrom": "appointments",
-          "tableTo": "cleaners",
+          "tableTo": "team_members",
           "columnsFrom": [
-            "assigned_cleaner_id"
+            "assigned_team_member_id"
           ],
           "columnsTo": [
             "id"
@@ -273,162 +273,9 @@
       "checkConstraints": {
         "appointments_assignee_ck": {
           "name": "appointments_assignee_ck",
-          "value": "(\"appointments\".\"assignee_type\" IS NULL AND \"appointments\".\"assigned_cleaner_id\" IS NULL AND \"appointments\".\"assigned_partner_id\" IS NULL)\n          OR (\"appointments\".\"assignee_type\" = 'cleaner' AND \"appointments\".\"assigned_cleaner_id\" IS NOT NULL AND \"appointments\".\"assigned_partner_id\" IS NULL)\n          OR (\"appointments\".\"assignee_type\" = 'partner' AND \"appointments\".\"assigned_partner_id\" IS NOT NULL AND \"appointments\".\"assigned_cleaner_id\" IS NULL)"
+          "value": "(\"appointments\".\"assignee_type\" IS NULL AND \"appointments\".\"assigned_team_member_id\" IS NULL AND \"appointments\".\"assigned_partner_id\" IS NULL)\n          OR (\"appointments\".\"assignee_type\" = 'team_member' AND \"appointments\".\"assigned_team_member_id\" IS NOT NULL AND \"appointments\".\"assigned_partner_id\" IS NULL)\n          OR (\"appointments\".\"assignee_type\" = 'partner' AND \"appointments\".\"assigned_partner_id\" IS NOT NULL AND \"appointments\".\"assigned_team_member_id\" IS NULL)"
         }
       },
-      "isRLSEnabled": false
-    },
-    "public.cleaners": {
-      "name": "cleaners",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "slug": {
-          "name": "slug",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "display_name": {
-          "name": "display_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "first_name": {
-          "name": "first_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "last_name": {
-          "name": "last_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "email": {
-          "name": "email",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "phone": {
-          "name": "phone",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "status": {
-          "name": "status",
-          "type": "cleaner_status",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'active'"
-        },
-        "hired_on": {
-          "name": "hired_on",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "employment_type": {
-          "name": "employment_type",
-          "type": "employment_type",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'full-time'"
-        },
-        "skills": {
-          "name": "skills",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "home_base": {
-          "name": "home_base",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "notes": {
-          "name": "notes",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "archived_at": {
-          "name": "archived_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "cleaners_tenant_idx": {
-          "name": "cleaners_tenant_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "cleaners_tenant_id_tenants_id_fk": {
-          "name": "cleaners_tenant_id_tenants_id_fk",
-          "tableFrom": "cleaners",
-          "tableTo": "tenants",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.customer_contacts": {
@@ -876,8 +723,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "reviewed_cleaner_id": {
-          "name": "reviewed_cleaner_id",
+        "reviewed_team_member_id": {
+          "name": "reviewed_team_member_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
@@ -975,12 +822,12 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "job_reviews_reviewed_cleaner_id_cleaners_id_fk": {
-          "name": "job_reviews_reviewed_cleaner_id_cleaners_id_fk",
+        "job_reviews_reviewed_team_member_id_team_members_id_fk": {
+          "name": "job_reviews_reviewed_team_member_id_team_members_id_fk",
           "tableFrom": "job_reviews",
-          "tableTo": "cleaners",
+          "tableTo": "team_members",
           "columnsFrom": [
-            "reviewed_cleaner_id"
+            "reviewed_team_member_id"
           ],
           "columnsTo": [
             "id"
@@ -1100,8 +947,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "assigned_cleaner_id": {
-          "name": "assigned_cleaner_id",
+        "assigned_team_member_id": {
+          "name": "assigned_team_member_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
@@ -1277,12 +1124,12 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "jobs_assigned_cleaner_id_cleaners_id_fk": {
-          "name": "jobs_assigned_cleaner_id_cleaners_id_fk",
+        "jobs_assigned_team_member_id_team_members_id_fk": {
+          "name": "jobs_assigned_team_member_id_team_members_id_fk",
           "tableFrom": "jobs",
-          "tableTo": "cleaners",
+          "tableTo": "team_members",
           "columnsFrom": [
-            "assigned_cleaner_id"
+            "assigned_team_member_id"
           ],
           "columnsTo": [
             "id"
@@ -1310,7 +1157,7 @@
       "checkConstraints": {
         "jobs_assignee_ck": {
           "name": "jobs_assignee_ck",
-          "value": "(\"jobs\".\"assignee_type\" IS NULL AND \"jobs\".\"assigned_cleaner_id\" IS NULL AND \"jobs\".\"assigned_partner_id\" IS NULL)\n          OR (\"jobs\".\"assignee_type\" = 'cleaner' AND \"jobs\".\"assigned_cleaner_id\" IS NOT NULL AND \"jobs\".\"assigned_partner_id\" IS NULL)\n          OR (\"jobs\".\"assignee_type\" = 'partner' AND \"jobs\".\"assigned_partner_id\" IS NOT NULL AND \"jobs\".\"assigned_cleaner_id\" IS NULL)"
+          "value": "(\"jobs\".\"assignee_type\" IS NULL AND \"jobs\".\"assigned_team_member_id\" IS NULL AND \"jobs\".\"assigned_partner_id\" IS NULL)\n          OR (\"jobs\".\"assignee_type\" = 'team_member' AND \"jobs\".\"assigned_team_member_id\" IS NOT NULL AND \"jobs\".\"assigned_partner_id\" IS NULL)\n          OR (\"jobs\".\"assignee_type\" = 'partner' AND \"jobs\".\"assigned_partner_id\" IS NOT NULL AND \"jobs\".\"assigned_team_member_id\" IS NULL)"
         }
       },
       "isRLSEnabled": false
@@ -2240,6 +2087,159 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.team_members": {
+      "name": "team_members",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "slug": {
+          "name": "slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "display_name": {
+          "name": "display_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "first_name": {
+          "name": "first_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_name": {
+          "name": "last_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "phone": {
+          "name": "phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "team_member_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        },
+        "hired_on": {
+          "name": "hired_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "employment_type": {
+          "name": "employment_type",
+          "type": "employment_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'full-time'"
+        },
+        "skills": {
+          "name": "skills",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "home_base": {
+          "name": "home_base",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "team_members_tenant_idx": {
+          "name": "team_members_tenant_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "team_members_tenant_id_tenants_id_fk": {
+          "name": "team_members_tenant_id_tenants_id_fk",
+          "tableFrom": "team_members",
+          "tableTo": "tenants",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.tenants": {
       "name": "tenants",
       "schema": "",
@@ -2314,17 +2314,8 @@
       "name": "assignee_type",
       "schema": "public",
       "values": [
-        "cleaner",
+        "team_member",
         "partner"
-      ]
-    },
-    "public.cleaner_status": {
-      "name": "cleaner_status",
-      "schema": "public",
-      "values": [
-        "active",
-        "inactive",
-        "on-leave"
       ]
     },
     "public.consent_status": {
@@ -2485,6 +2476,15 @@
         "deep",
         "move-out",
         "one-time"
+      ]
+    },
+    "public.team_member_status": {
+      "name": "team_member_status",
+      "schema": "public",
+      "values": [
+        "active",
+        "inactive",
+        "on-leave"
       ]
     }
   },

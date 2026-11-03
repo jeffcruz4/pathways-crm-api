@@ -19,7 +19,7 @@ type PlanIns = InferInsertModel<typeof schema.plans>;
 type QuoteIns = InferInsertModel<typeof schema.quotes>;
 type JobIns = InferInsertModel<typeof schema.jobs>;
 type ReviewIns = InferInsertModel<typeof schema.jobReviews>;
-type CleanerIns = InferInsertModel<typeof schema.cleaners>;
+type TeamMemberIns = InferInsertModel<typeof schema.teamMembers>;
 type PartnerIns = InferInsertModel<typeof schema.partners>;
 
 // Stable UUIDs. The "entity" segment must be valid hex, so each entity gets a
@@ -36,7 +36,7 @@ const lid = (n: number) => U("8c05", n); // plan
 const qid = (n: number) => U("8c06", n); // quote
 const jid = (n: number) => U("8c07", n); // job
 const rid = (n: number) => U("8c08", n); // review
-const eid = (n: number) => U("8c09", n); // cleaner
+const eid = (n: number) => U("8c09", n); // team member
 const nid = (n: number) => U("8c0a", n); // partner
 
 const DAY = 86_400_000;
@@ -45,7 +45,7 @@ const daysFromNow = (d: number) => new Date(now + d * DAY);
 
 export const tenant: TenantIns = { id: TENANT, name: "Corvia Cleaning", slug: "corvia" };
 
-export const cleaners: CleanerIns[] = [
+export const teamMembers: TeamMemberIns[] = [
   { id: eid(1), tenantId: TENANT, slug: "maria-santos", displayName: "Maria Santos", email: "maria@corvia.example", status: "active", employmentType: "full-time", skills: ["standard", "deep"], homeBase: "Swedesboro" },
   { id: eid(2), tenantId: TENANT, slug: "james-lee", displayName: "James Lee", email: "james@corvia.example", status: "active", employmentType: "full-time", skills: ["standard", "move-out"], homeBase: "Mullica Hill" },
 ];
@@ -107,28 +107,28 @@ export const quotes: QuoteIns[] = [
 
 export const jobs: JobIns[] = [
   // Gloria — recurring weekly, several completed + one upcoming.
-  { id: jid(1), tenantId: TENANT, customerId: cid(2), propertyId: pid(2), planId: lid(1), status: "completed", serviceType: "standard", scheduledStart: daysFromNow(-7), completedAt: daysFromNow(-7), assigneeType: "cleaner", assignedCleanerId: eid(1), priceCents: 12000 },
-  { id: jid(2), tenantId: TENANT, customerId: cid(2), propertyId: pid(2), planId: lid(1), status: "completed", serviceType: "standard", scheduledStart: daysFromNow(0), completedAt: daysFromNow(0), assigneeType: "cleaner", assignedCleanerId: eid(1), priceCents: 12000 },
-  { id: jid(3), tenantId: TENANT, customerId: cid(2), propertyId: pid(2), planId: lid(1), status: "scheduled", serviceType: "standard", scheduledStart: daysFromNow(7), assigneeType: "cleaner", assignedCleanerId: eid(1), priceCents: 12000 },
+  { id: jid(1), tenantId: TENANT, customerId: cid(2), propertyId: pid(2), planId: lid(1), status: "completed", serviceType: "standard", scheduledStart: daysFromNow(-7), completedAt: daysFromNow(-7), assigneeType: "team_member", assignedTeamMemberId: eid(1), priceCents: 12000 },
+  { id: jid(2), tenantId: TENANT, customerId: cid(2), propertyId: pid(2), planId: lid(1), status: "completed", serviceType: "standard", scheduledStart: daysFromNow(0), completedAt: daysFromNow(0), assigneeType: "team_member", assignedTeamMemberId: eid(1), priceCents: 12000 },
+  { id: jid(3), tenantId: TENANT, customerId: cid(2), propertyId: pid(2), planId: lid(1), status: "scheduled", serviceType: "standard", scheduledStart: daysFromNow(7), assigneeType: "team_member", assignedTeamMemberId: eid(1), priceCents: 12000 },
   // Marcus — recurring weekly, high LTV.
-  { id: jid(4), tenantId: TENANT, customerId: cid(3), propertyId: pid(3), planId: lid(2), status: "completed", serviceType: "standard", scheduledStart: daysFromNow(-5), completedAt: daysFromNow(-5), assigneeType: "cleaner", assignedCleanerId: eid(2), priceCents: 14000 },
-  { id: jid(5), tenantId: TENANT, customerId: cid(3), propertyId: pid(3), planId: lid(2), status: "scheduled", serviceType: "standard", scheduledStart: daysFromNow(2), assigneeType: "cleaner", assignedCleanerId: eid(2), priceCents: 14000 },
+  { id: jid(4), tenantId: TENANT, customerId: cid(3), propertyId: pid(3), planId: lid(2), status: "completed", serviceType: "standard", scheduledStart: daysFromNow(-5), completedAt: daysFromNow(-5), assigneeType: "team_member", assignedTeamMemberId: eid(2), priceCents: 14000 },
+  { id: jid(5), tenantId: TENANT, customerId: cid(3), propertyId: pid(3), planId: lid(2), status: "scheduled", serviceType: "standard", scheduledStart: daysFromNow(2), assigneeType: "team_member", assignedTeamMemberId: eid(2), priceCents: 14000 },
   // Dwayne — one lapsed one-time deep (contractor).
   { id: jid(6), tenantId: TENANT, customerId: cid(6), propertyId: pid(6), status: "completed", serviceType: "deep", scheduledStart: daysFromNow(-120), completedAt: daysFromNow(-120), assigneeType: "partner", assignedPartnerId: nid(1), priceCents: 82000 },
   // Gina — accepted move-out, booked + completed.
   { id: jid(7), tenantId: TENANT, customerId: cid(7), propertyId: pid(7), quoteId: qid(4), status: "completed", serviceType: "move-out", scheduledStart: daysFromNow(-7), completedAt: daysFromNow(-7), assigneeType: "partner", assignedPartnerId: nid(1), priceCents: 28000 },
-  { id: jid(8), tenantId: TENANT, customerId: cid(7), propertyId: pid(7), status: "scheduled", serviceType: "standard", scheduledStart: daysFromNow(5), assigneeType: "cleaner", assignedCleanerId: eid(1), priceCents: 13000 },
+  { id: jid(8), tenantId: TENANT, customerId: cid(7), propertyId: pid(7), status: "scheduled", serviceType: "standard", scheduledStart: daysFromNow(5), assigneeType: "team_member", assignedTeamMemberId: eid(1), priceCents: 13000 },
 ];
 
 export const reviews: ReviewIns[] = [
-  { id: rid(1), tenantId: TENANT, jobId: jid(1), customerId: cid(2), rating: 5, reviewText: "Spotless as always, thank you Maria!", reviewer: "customer", wouldRecommend: true, reviewedCleanerId: eid(1) },
-  { id: rid(2), tenantId: TENANT, jobId: jid(4), customerId: cid(3), rating: 5, reviewText: "Great job, on time.", reviewer: "customer", wouldRecommend: true, reviewedCleanerId: eid(2) },
+  { id: rid(1), tenantId: TENANT, jobId: jid(1), customerId: cid(2), rating: 5, reviewText: "Spotless as always, thank you Maria!", reviewer: "customer", wouldRecommend: true, reviewedTeamMemberId: eid(1) },
+  { id: rid(2), tenantId: TENANT, jobId: jid(4), customerId: cid(3), rating: 5, reviewText: "Great job, on time.", reviewer: "customer", wouldRecommend: true, reviewedTeamMemberId: eid(2) },
   { id: rid(3), tenantId: TENANT, jobId: jid(7), customerId: cid(7), rating: 4, reviewText: "Move-out clean was thorough.", customerNote: "Ask about recurring", reviewer: "customer", wouldRecommend: true, reviewedPartnerId: nid(1) },
   { id: rid(4), tenantId: TENANT, jobId: jid(6), customerId: cid(6), rating: 3, customerNote: "Hasn't rebooked since; follow up.", reviewer: "staff" },
 ];
 
 export const appointments: InferInsertModel<typeof schema.appointments>[] = [
-  { id: U("8c0b", 1), tenantId: TENANT, customerId: cid(2), propertyId: pid(2), jobId: jid(3), kind: "clean", status: "scheduled", title: "Gloria Hynes — weekly clean", detail: "Standard clean", startsAt: daysFromNow(7), durationMin: 120, assigneeType: "cleaner", assignedCleanerId: eid(1) },
-  { id: U("8c0b", 2), tenantId: TENANT, customerId: cid(3), propertyId: pid(3), jobId: jid(5), kind: "clean", status: "scheduled", title: "Marcus Reed — weekly clean", detail: "Standard clean", startsAt: daysFromNow(2), durationMin: 120, assigneeType: "cleaner", assignedCleanerId: eid(2) },
+  { id: U("8c0b", 1), tenantId: TENANT, customerId: cid(2), propertyId: pid(2), jobId: jid(3), kind: "clean", status: "scheduled", title: "Gloria Hynes — weekly clean", detail: "Standard clean", startsAt: daysFromNow(7), durationMin: 120, assigneeType: "team_member", assignedTeamMemberId: eid(1) },
+  { id: U("8c0b", 2), tenantId: TENANT, customerId: cid(3), propertyId: pid(3), jobId: jid(5), kind: "clean", status: "scheduled", title: "Marcus Reed — weekly clean", detail: "Standard clean", startsAt: daysFromNow(2), durationMin: 120, assigneeType: "team_member", assignedTeamMemberId: eid(2) },
   { id: U("8c0b", 3), tenantId: TENANT, customerId: cid(1), propertyId: pid(1), quoteId: qid(1), kind: "quote-visit", status: "scheduled", title: "Tom Becker — walkthrough", detail: "Quote visit for deep clean", startsAt: daysFromNow(1), durationMin: 45 },
 ];

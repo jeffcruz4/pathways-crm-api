@@ -17,7 +17,7 @@ export const QuoteStatus = z.enum(["draft", "sent", "follow-up", "accepted", "de
 export const PriceUnit = z.enum(["per-visit", "flat"]);
 export const QuoteSignal = z.enum(["cori", "needs-you", "info"]);
 export const JobStatus = z.enum(["scheduled", "in-progress", "completed", "cancelled", "no-show"]);
-export const AssigneeType = z.enum(["cleaner", "partner"]);
+export const AssigneeType = z.enum(["team_member", "partner"]);
 export const ContactKind = z.enum(["mobile", "landline", "email"]);
 export const ContactChannel = z.enum(["sms", "email", "call"]);
 export const ConsentStatus = z.enum(["unknown", "opted_in", "opted_out"]);
@@ -177,7 +177,7 @@ export const JobCreate = z.object({
   durationMin: z.number().int().optional(),
   completedAt: z.string().optional(),
   assigneeType: AssigneeType.optional(),
-  assignedCleanerId: z.string().optional(),
+  assignedTeamMemberId: z.string().optional(),
   assignedPartnerId: z.string().optional(),
   priceCents: z.number().int().optional(),
   notes: z.string().optional(),

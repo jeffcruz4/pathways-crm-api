@@ -18,7 +18,7 @@ import {
 } from "./assemble.js";
 import type { Customer, CustomerListItem, CustomerCreate } from "../domain/customer.js";
 import type { Partner, PartnerListItem, PartnerCreate } from "../domain/partner.js";
-import type { Cleaner, CleanerListItem, CleanerCreate } from "../domain/cleaner.js";
+import type { TeamMember, TeamMemberListItem, TeamMemberCreate } from "../domain/team-member.js";
 import type { Pipeline, PipelineStage } from "../domain/deal.js";
 import type { ConvoListItem, ConversationDetail } from "../domain/conversation.js";
 import type { CalendarWeek } from "../domain/calendar.js";
@@ -85,14 +85,14 @@ export class PostgresRepository implements Repository {
     const reviewsByJob = new Map(reviews.map((r) => [r.jobId, r]));
 
     // Resolve worker display names for assigned jobs.
-    const cleanerIds = jobs.map((j) => j.assignedCleanerId).filter((x): x is string => !!x);
+    const teamMemberIds = jobs.map((j) => j.assignedTeamMemberId).filter((x): x is string => !!x);
     const partnerIds = jobs.map((j) => j.assignedPartnerId).filter((x): x is string => !!x);
     const workerNameById = new Map<string, string>();
-    if (cleanerIds.length) {
+    if (teamMemberIds.length) {
       const rows = await this.db
         .select()
-        .from(schema.cleaners)
-        .where(inArray(schema.cleaners.id, cleanerIds));
+        .from(schema.teamMembers)
+        .where(inArray(schema.teamMembers.id, teamMemberIds));
       for (const r of rows) workerNameById.set(r.id, r.displayName);
     }
     if (partnerIds.length) {
@@ -296,14 +296,14 @@ export class PostgresRepository implements Repository {
         durationMin: input.durationMin,
         completedAt: input.completedAt ? new Date(input.completedAt) : undefined,
         assigneeType: input.assigneeType,
-        assignedCleanerId: input.assignedCleanerId,
+        assignedTeamMemberId: input.assignedTeamMemberId,
         assignedPartnerId: input.assignedPartnerId,
         priceCents: input.priceCents,
       })
       .returning();
     const name =
-      row.assignedCleanerId || row.assignedPartnerId
-        ? await this.workerName(row.assignedCleanerId, row.assignedPartnerId)
+      row.assignedTeamMemberId || row.assignedPartnerId
+        ? await this.workerName(row.assignedTeamMemberId, row.assignedPartnerId)
         : null;
     return mapJob(row, undefined, name);
   }
@@ -331,16 +331,16 @@ export class PostgresRepository implements Repository {
         customerNote: input.customerNote,
         reviewer: input.reviewer ?? "customer",
         wouldRecommend: input.wouldRecommend,
-        reviewedCleanerId: job.assignedCleanerId,
+        reviewedTeamMemberId: job.assignedTeamMemberId,
         reviewedPartnerId: job.assignedPartnerId,
       })
       .returning();
     return mapReview(row);
   }
 
-  private async workerName(cleanerId: string | null, partnerId: string | null): Promise<string | null> {
-    if (cleanerId) {
-      const [r] = await this.db.select().from(schema.cleaners).where(eq(schema.cleaners.id, cleanerId));
+  private async workerName(teamMemberId: string | null, partnerId: string | null): Promise<string | null> {
+    if (teamMemberId) {
+      const [r] = await this.db.select().from(schema.teamMembers).where(eq(schema.teamMembers.id, teamMemberId));
       return r?.displayName ?? null;
     }
     if (partnerId) {
@@ -384,9 +384,9 @@ export class PostgresRepository implements Repository {
     return partnerDetail(r);
   }
 
-  // ── Cleaners (full-time staff) ──
-  async listCleaners(): Promise<CleanerListItem[]> {
-    const rows = await this.db.select().from(schema.cleaners);
+  // ── Team members (full-time staff) ──
+  async listTeamMembers(): Promise<TeamMemberListItem[]> {
+    const rows = await this.db.select().from(schema.teamMembers);
     return rows.map((r) => ({
       id: r.id,
       name: r.displayName,
@@ -397,10 +397,10 @@ export class PostgresRepository implements Repository {
     }));
   }
 
-  async createCleaner(input: CleanerCreate): Promise<Cleaner> {
+  async createTeamMember(input: TeamMemberCreate): Promise<TeamMember> {
     const tenantId = await this.tenantId();
     const [r] = await this.db
-      .insert(schema.cleaners)
+      .insert(schema.teamMembers)
       .values({
         tenantId,
         displayName: input.name,

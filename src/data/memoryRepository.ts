@@ -18,7 +18,7 @@ import {
 } from "./assemble.js";
 import type { Customer, CustomerListItem, CustomerCreate } from "../domain/customer.js";
 import type { Partner, PartnerListItem, PartnerCreate } from "../domain/partner.js";
-import type { Cleaner, CleanerListItem, CleanerCreate } from "../domain/cleaner.js";
+import type { TeamMember, TeamMemberListItem, TeamMemberCreate } from "../domain/team-member.js";
 import type {
   Contact,
   ContactCreate,
@@ -41,7 +41,7 @@ type PlanRow = InferSelectModel<typeof schema.plans>;
 type QuoteRow = InferSelectModel<typeof schema.quotes>;
 type JobRow = InferSelectModel<typeof schema.jobs>;
 type ReviewRow = InferSelectModel<typeof schema.jobReviews>;
-type CleanerRow = InferSelectModel<typeof schema.cleaners>;
+type TeamMemberRow = InferSelectModel<typeof schema.teamMembers>;
 type PartnerRow = InferSelectModel<typeof schema.partners>;
 
 const nowTs = () => new Date();
@@ -60,13 +60,13 @@ export class MemoryRepository implements Repository {
   private quotes: QuoteRow[] = [];
   private jobs: JobRow[] = [];
   private reviews: ReviewRow[] = [];
-  private cleaners: CleanerRow[] = [];
+  private teamMembers: TeamMemberRow[] = [];
   private partners: PartnerRow[] = [];
   private workerNames = new Map<string, string>();
   private readonly tenantId = rel.tenant.id!;
 
   constructor() {
-    this.cleaners = rel.cleaners.map((c) => this.fillCleaner(c));
+    this.teamMembers = rel.teamMembers.map((c) => this.fillTeamMember(c));
     this.partners = rel.partners.map((p) => this.fillPartner(p));
     // Normalize insert-model seed rows into full select-model rows.
     this.customers = rel.customers.map((c) => this.fillCustomer(c));
@@ -76,7 +76,7 @@ export class MemoryRepository implements Repository {
     this.quotes = rel.quotes.map((q) => this.fillQuote(q));
     this.jobs = rel.jobs.map((j) => this.fillJob(j));
     this.reviews = rel.reviews.map((r) => this.fillReview(r));
-    for (const e of rel.cleaners) this.workerNames.set(e.id!, e.displayName);
+    for (const e of rel.teamMembers) this.workerNames.set(e.id!, e.displayName);
     for (const p of rel.partners) this.workerNames.set(p.id!, p.displayName);
   }
 
@@ -210,7 +210,7 @@ export class MemoryRepository implements Repository {
       durationMin: j.durationMin ?? null,
       completedAt: j.completedAt ?? null,
       assigneeType: j.assigneeType ?? null,
-      assignedCleanerId: j.assignedCleanerId ?? null,
+      assignedTeamMemberId: j.assignedTeamMemberId ?? null,
       assignedPartnerId: j.assignedPartnerId ?? null,
       priceCents: j.priceCents ?? null,
       currency: j.currency ?? "USD",
@@ -231,13 +231,13 @@ export class MemoryRepository implements Repository {
       customerNote: r.customerNote ?? null,
       reviewer: r.reviewer ?? "customer",
       wouldRecommend: r.wouldRecommend ?? null,
-      reviewedCleanerId: r.reviewedCleanerId ?? null,
+      reviewedTeamMemberId: r.reviewedTeamMemberId ?? null,
       reviewedPartnerId: r.reviewedPartnerId ?? null,
       createdAt: nowTs(),
       updatedAt: nowTs(),
     };
   }
-  private fillCleaner(c: (typeof rel.cleaners)[number]): CleanerRow {
+  private fillTeamMember(c: (typeof rel.teamMembers)[number]): TeamMemberRow {
     return {
       id: c.id ?? randomUUID(),
       tenantId: c.tenantId,
@@ -473,12 +473,12 @@ export class MemoryRepository implements Repository {
       durationMin: input.durationMin,
       completedAt: input.completedAt ? new Date(input.completedAt) : null,
       assigneeType: input.assigneeType,
-      assignedCleanerId: input.assignedCleanerId,
+      assignedTeamMemberId: input.assignedTeamMemberId,
       assignedPartnerId: input.assignedPartnerId,
       priceCents: input.priceCents,
     });
     this.jobs.push(row);
-    const workerId = row.assignedCleanerId ?? row.assignedPartnerId ?? null;
+    const workerId = row.assignedTeamMemberId ?? row.assignedPartnerId ?? null;
     return mapJob(row, undefined, workerId ? (this.workerNames.get(workerId) ?? null) : null);
   }
 
@@ -500,7 +500,7 @@ export class MemoryRepository implements Repository {
       customerNote: input.customerNote,
       reviewer: input.reviewer ?? "customer",
       wouldRecommend: input.wouldRecommend,
-      reviewedCleanerId: job.assignedCleanerId,
+      reviewedTeamMemberId: job.assignedTeamMemberId,
       reviewedPartnerId: job.assignedPartnerId,
     });
     this.reviews.push(row);
@@ -538,9 +538,9 @@ export class MemoryRepository implements Repository {
     return partnerDetail(row);
   }
 
-  // ── Cleaners ──
-  async listCleaners(): Promise<CleanerListItem[]> {
-    return this.cleaners.map((r) => ({
+  // ── Team members ──
+  async listTeamMembers(): Promise<TeamMemberListItem[]> {
+    return this.teamMembers.map((r) => ({
       id: r.id,
       name: r.displayName,
       status: r.status,
@@ -550,8 +550,8 @@ export class MemoryRepository implements Repository {
     }));
   }
 
-  async createCleaner(input: CleanerCreate): Promise<Cleaner> {
-    const row = this.fillCleaner({
+  async createTeamMember(input: TeamMemberCreate): Promise<TeamMember> {
+    const row = this.fillTeamMember({
       tenantId: this.tenantId,
       displayName: input.name,
       firstName: input.firstName,
@@ -565,7 +565,7 @@ export class MemoryRepository implements Repository {
       homeBase: input.homeBase,
       notes: input.notes,
     });
-    this.cleaners.push(row);
+    this.teamMembers.push(row);
     this.workerNames.set(row.id, row.displayName);
     return {
       id: row.id,

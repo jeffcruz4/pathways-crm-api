@@ -5,8 +5,8 @@
  * a normalized, multi-tenant relational model. The customer row holds identity
  * only; properties, contacts, plans (per-customer subscriptions to reusable
  * service_offerings), quotes (= the pipeline), jobs, appointments, and reviews
- * hang off it by FK. Work is performed by a full-time `cleaner` OR a contracted
- * `partner` (assignee_type + two nullable FKs, CHECK-enforced). Money is stored
+ * hang off it by FK. Work is performed by a `team_member` (your staff) OR a
+ * contracted `partner` (assignee_type + two nullable FKs, CHECK-enforced). Money is stored
  * in integer cents; dates/times are real date/timestamptz; ids are UUIDs with
  * an optional per-tenant `slug` for URLs.
  *
@@ -58,7 +58,7 @@ export const jobStatus = pgEnum("job_status", [
   "cancelled",
   "no-show",
 ]);
-export const assigneeType = pgEnum("assignee_type", ["cleaner", "partner"]);
+export const assigneeType = pgEnum("assignee_type", ["team_member", "partner"]);
 export const appointmentKind = pgEnum("appointment_kind", [
   "clean",
   "walkthrough",
@@ -74,7 +74,7 @@ export const appointmentStatus = pgEnum("appointment_status", [
   "no-show",
 ]);
 export const reviewSource = pgEnum("review_source", ["customer", "staff"]);
-export const cleanerStatus = pgEnum("cleaner_status", ["active", "inactive", "on-leave"]);
+export const teamMemberStatus = pgEnum("team_member_status", ["active", "inactive", "on-leave"]);
 export const employmentType = pgEnum("employment_type", ["full-time", "part-time"]);
 export const partnerType = pgEnum("partner_type", ["lead-gen", "contractor", "both"]);
 export const partnerStage = pgEnum("partner_stage", [
@@ -291,9 +291,9 @@ export const quotes = pgTable(
   }),
 );
 
-// ─────────────────────────── Cleaners (full-time) ───────────────────────────
-export const cleaners = pgTable(
-  "cleaners",
+// ─────────────────────────── Team members (your staff) ───────────────────────────
+export const teamMembers = pgTable(
+  "team_members",
   {
     id: pk(),
     tenantId: uuid("tenant_id")
@@ -305,7 +305,7 @@ export const cleaners = pgTable(
     lastName: text("last_name"),
     email: text("email"),
     phone: text("phone"),
-    status: cleanerStatus("status").notNull().default("active"),
+    status: teamMemberStatus("status").notNull().default("active"),
     hiredOn: date("hired_on"),
     employmentType: employmentType("employment_type").notNull().default("full-time"),
     skills: jsonb("skills").$type<string[]>().notNull().default([]),
@@ -315,10 +315,10 @@ export const cleaners = pgTable(
     updatedAt: updatedAt(),
     archivedAt: archivedAt(),
   },
-  (t) => ({ byTenant: index("cleaners_tenant_idx").on(t.tenantId) }),
+  (t) => ({ byTenant: index("team_members_tenant_idx").on(t.tenantId) }),
 );
 
-// ───────────────── Partners (sales partners + contracted cleaners) ─────────────────
+// ───────────────── Partners (sales partners + contracted crews) ─────────────────
 export const partners = pgTable(
   "partners",
   {
@@ -369,7 +369,7 @@ export const jobs = pgTable(
     durationMin: integer("duration_min"),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     assigneeType: assigneeType("assignee_type"),
-    assignedCleanerId: uuid("assigned_cleaner_id").references(() => cleaners.id),
+    assignedTeamMemberId: uuid("assigned_team_member_id").references(() => teamMembers.id),
     assignedPartnerId: uuid("assigned_partner_id").references(() => partners.id),
     priceCents: integer("price_cents"),
     currency: char("currency", { length: 3 }).notNull().default("USD"),
@@ -385,9 +385,9 @@ export const jobs = pgTable(
     // Exactly one worker, matching the assignee_type (Q10).
     assigneeExclusive: check(
       "jobs_assignee_ck",
-      sql`(${t.assigneeType} IS NULL AND ${t.assignedCleanerId} IS NULL AND ${t.assignedPartnerId} IS NULL)
-          OR (${t.assigneeType} = 'cleaner' AND ${t.assignedCleanerId} IS NOT NULL AND ${t.assignedPartnerId} IS NULL)
-          OR (${t.assigneeType} = 'partner' AND ${t.assignedPartnerId} IS NOT NULL AND ${t.assignedCleanerId} IS NULL)`,
+      sql`(${t.assigneeType} IS NULL AND ${t.assignedTeamMemberId} IS NULL AND ${t.assignedPartnerId} IS NULL)
+          OR (${t.assigneeType} = 'team_member' AND ${t.assignedTeamMemberId} IS NOT NULL AND ${t.assignedPartnerId} IS NULL)
+          OR (${t.assigneeType} = 'partner' AND ${t.assignedPartnerId} IS NOT NULL AND ${t.assignedTeamMemberId} IS NULL)`,
     ),
   }),
 );
@@ -412,7 +412,7 @@ export const appointments = pgTable(
     endsAt: timestamp("ends_at", { withTimezone: true }),
     durationMin: integer("duration_min"),
     assigneeType: assigneeType("assignee_type"),
-    assignedCleanerId: uuid("assigned_cleaner_id").references(() => cleaners.id),
+    assignedTeamMemberId: uuid("assigned_team_member_id").references(() => teamMembers.id),
     assignedPartnerId: uuid("assigned_partner_id").references(() => partners.id),
     locationOverride: text("location_override"),
     createdAt: createdAt(),
@@ -424,9 +424,9 @@ export const appointments = pgTable(
     byCustomer: index("appointments_customer_idx").on(t.customerId),
     assigneeExclusive: check(
       "appointments_assignee_ck",
-      sql`(${t.assigneeType} IS NULL AND ${t.assignedCleanerId} IS NULL AND ${t.assignedPartnerId} IS NULL)
-          OR (${t.assigneeType} = 'cleaner' AND ${t.assignedCleanerId} IS NOT NULL AND ${t.assignedPartnerId} IS NULL)
-          OR (${t.assigneeType} = 'partner' AND ${t.assignedPartnerId} IS NOT NULL AND ${t.assignedCleanerId} IS NULL)`,
+      sql`(${t.assigneeType} IS NULL AND ${t.assignedTeamMemberId} IS NULL AND ${t.assignedPartnerId} IS NULL)
+          OR (${t.assigneeType} = 'team_member' AND ${t.assignedTeamMemberId} IS NOT NULL AND ${t.assignedPartnerId} IS NULL)
+          OR (${t.assigneeType} = 'partner' AND ${t.assignedPartnerId} IS NOT NULL AND ${t.assignedTeamMemberId} IS NULL)`,
     ),
   }),
 );
@@ -450,7 +450,7 @@ export const jobReviews = pgTable(
     customerNote: text("customer_note"),
     reviewer: reviewSource("reviewer").notNull().default("customer"),
     wouldRecommend: boolean("would_recommend"),
-    reviewedCleanerId: uuid("reviewed_cleaner_id").references(() => cleaners.id),
+    reviewedTeamMemberId: uuid("reviewed_team_member_id").references(() => teamMembers.id),
     reviewedPartnerId: uuid("reviewed_partner_id").references(() => partners.id),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
