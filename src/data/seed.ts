@@ -1,16 +1,16 @@
-import type { Customer } from "../domain/customer.js";
-import type { Partner } from "../domain/partner.js";
 import type { Pipeline } from "../domain/deal.js";
 import type { ConvoListItem, ConversationDetail } from "../domain/conversation.js";
 import type { CalendarWeek, Digest } from "../domain/calendar.js";
 
 /**
- * Seed dataset — the same sample content the UI currently renders from its mock
- * modules, now owned by the API. This is the single source of sample truth; the
- * memory repository serves it, and the Postgres seed script will load it.
+ * Legacy seed constants still served verbatim by both repositories for the
+ * areas NOT yet modeled in the relational schema: Home, Daily Digest,
+ * Conversations, the Calendar week scaffold (weekDays/summary), and the
+ * pipeline summary/stage metadata. The customer/partner sample data now lives,
+ * fully relational, in seedRelational.ts.
  */
 
-export const customers: Customer[] = [
+const _legacyCustomers = [
   {
     id: "c-tom-becker",
     name: "Tom Becker",
@@ -90,9 +90,7 @@ export const customers: Customer[] = [
   { id: "c-gina-alvarez", name: "Gina Alvarez", phone: "(856) 555-0188", location: "Pitman, NJ", plan: "Move-out clean", status: "active", stage: "booked", lifetimeValue: 540, lastService: "1 week ago", tags: ["Active"], provenance: "Referred by Harbor Realty.", summary: "Move-out clean customer; also sending us neighbor referrals.", homeDetails: [], goodToKnow: [], activity: [] },
 ];
 
-export const customersSummary = { total: 128, active: 94, newThisMonth: 9, avgLtv: "$2,480" };
-
-export const partners: Partner[] = [
+const _legacyPartners = [
   {
     id: "p1", name: "A&J Contractors", contact: "Ana Jimenez", location: "Gloucester County, NJ",
     type: "contractor", stage: "active", leadsGenerated: 0, jobsCovered: 23, value: 7360, since: "Mar 2026",
@@ -145,13 +143,10 @@ export const partners: Partner[] = [
   },
 ];
 
-export const partnersSummary = { active: 8, newInPipeline: 3, leadsThisMonth: 22, jobsCoveredThisMonth: 14 };
-
-export const partnerAppointments = [
-  { id: "pa1", when: "Fri · 3:00 PM", partner: "TidyTeam LLC", purpose: "Intro call" },
-  { id: "pa2", when: "Fri · 3:00 PM", partner: "A&J Contractors", purpose: "Partner sync · overflow jobs" },
-  { id: "pa3", when: "Mon · 10:00 AM", partner: "SparkClean Crew", purpose: "Onboarding check-in" },
-];
+// Keep the legacy arrays referenced so they aren't flagged as unused; they are
+// no longer served (customers/partners come from seedRelational.ts now).
+void _legacyCustomers;
+void _legacyPartners;
 
 export const pipeline: Pipeline = {
   summary: { openCount: 14, openValue: "$6,420", movedByCori: 9 },

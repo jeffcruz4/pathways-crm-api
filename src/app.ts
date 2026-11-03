@@ -23,7 +23,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
 
   await app.register(cors, {
     origin: config.corsOrigins.length ? config.corsOrigins : true,
-    methods: ["GET", "OPTIONS"],
+    methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
   });
 
   const repo = createRepository(config);

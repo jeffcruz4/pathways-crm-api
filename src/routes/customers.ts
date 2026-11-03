@@ -1,8 +1,19 @@
 import type { FastifyInstance } from "fastify";
 import type { Repository } from "../data/index.js";
+import { parseBody } from "./validate.js";
+import { CustomerCreate } from "../domain/customer.js";
+import {
+  ContactCreate,
+  PropertyCreate,
+  PlanCreate,
+  QuoteCreate,
+  JobCreate,
+  ReviewCreate,
+} from "../domain/crm.js";
 
 export function customerRoutes(repo: Repository) {
   return async function (app: FastifyInstance) {
+    // ── List / detail ──
     app.get("/customers", async () => {
       const items = await repo.listCustomers();
       return { items };
@@ -15,5 +26,64 @@ export function customerRoutes(repo: Repository) {
       }
       return customer;
     });
+
+    // ── Create a customer (identity + optional first contacts) ──
+    app.post("/customers", async (req, reply) => {
+      const input = parseBody(CustomerCreate, req.body, reply);
+      if (!input) return;
+      const customer = await repo.createCustomer(input);
+      return reply.code(201).send(customer);
+    });
+
+    // ── Sub-resources: build the 360° record ──
+    const notFound = (reply: import("fastify").FastifyReply) =>
+      reply.code(404).send({ error: "not_found", message: "Customer not found" });
+
+    app.post<{ Params: { id: string } }>("/customers/:id/contacts", async (req, reply) => {
+      const input = parseBody(ContactCreate, req.body, reply);
+      if (!input) return;
+      const created = await repo.addContact(req.params.id, input);
+      return created ? reply.code(201).send(created) : notFound(reply);
+    });
+
+    app.post<{ Params: { id: string } }>("/customers/:id/properties", async (req, reply) => {
+      const input = parseBody(PropertyCreate, req.body, reply);
+      if (!input) return;
+      const created = await repo.addProperty(req.params.id, input);
+      return created ? reply.code(201).send(created) : notFound(reply);
+    });
+
+    app.post<{ Params: { id: string } }>("/customers/:id/plans", async (req, reply) => {
+      const input = parseBody(PlanCreate, req.body, reply);
+      if (!input) return;
+      const created = await repo.createPlan(req.params.id, input);
+      return created ? reply.code(201).send(created) : notFound(reply);
+    });
+
+    app.post<{ Params: { id: string } }>("/customers/:id/quotes", async (req, reply) => {
+      const input = parseBody(QuoteCreate, req.body, reply);
+      if (!input) return;
+      const created = await repo.createQuote(req.params.id, input);
+      return created ? reply.code(201).send(created) : notFound(reply);
+    });
+
+    app.post<{ Params: { id: string } }>("/customers/:id/jobs", async (req, reply) => {
+      const input = parseBody(JobCreate, req.body, reply);
+      if (!input) return;
+      const created = await repo.createJob(req.params.id, input);
+      return created ? reply.code(201).send(created) : notFound(reply);
+    });
+
+    app.post<{ Params: { id: string; jobId: string } }>(
+      "/customers/:id/jobs/:jobId/review",
+      async (req, reply) => {
+        const input = parseBody(ReviewCreate, req.body, reply);
+        if (!input) return;
+        const created = await repo.addJobReview(req.params.id, req.params.jobId, input);
+        return created
+          ? reply.code(201).send(created)
+          : reply.code(404).send({ error: "not_found", message: "Customer or job not found" });
+      },
+    );
   };
 }
