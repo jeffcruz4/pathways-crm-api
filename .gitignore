@@ -24,6 +24,10 @@ drizzle/meta/_journal.tmp
 .idea/
 *.swp
 
+# File-sync duplicate artifacts (e.g. "foo 2.ts") from cloud-sync/backup tools
+*\ [0-9].*
+*\ [0-9][0-9].*
+
 # Terraform
 *.tfstate
 *.tfstate.*
