@@ -19,7 +19,7 @@ import {
   partnerDetail,
   type CustomerBundle,
 } from "./assemble.js";
-import type { Customer, CustomerListItem, CustomerCreate } from "../domain/customer.js";
+import type { Customer, CustomerListItem, CustomerCreate, CustomerUpdate } from "../domain/customer.js";
 import type { CustomerStats } from "../domain/customer-stats.js";
 import type { Partner, PartnerListItem, PartnerCreate } from "../domain/partner.js";
 import type { TeamMember, TeamMemberListItem, TeamMemberCreate } from "../domain/team-member.js";
@@ -28,6 +28,7 @@ import type {
   ContactCreate,
   Property,
   PropertyCreate,
+  PropertyUpdate,
   Plan,
   PlanCreate,
   Quote,
@@ -432,6 +433,25 @@ export class MemoryRepository implements Repository {
     return assembleCustomer(this.bundleFor(row));
   }
 
+  async updateCustomer(id: string, input: CustomerUpdate): Promise<Customer | undefined> {
+    const row = this.find(id);
+    if (!row) return undefined;
+    if (input.name !== undefined) row.displayName = input.name;
+    if (input.firstName !== undefined) row.firstName = input.firstName;
+    if (input.lastName !== undefined) row.lastName = input.lastName;
+    if (input.companyName !== undefined) row.companyName = input.companyName;
+    if (input.status !== undefined) row.status = input.status;
+    if (input.stage !== undefined) row.lifecycleStage = input.stage;
+    if (input.preferredContact !== undefined) row.preferredContact = input.preferredContact;
+    if (input.source !== undefined) row.source = input.source;
+    if (input.summary !== undefined) row.summary = input.summary;
+    if (input.tags !== undefined) row.tags = input.tags;
+    if (input.goodToKnow !== undefined) row.goodToKnow = input.goodToKnow;
+    if (input.notes !== undefined) row.notes = input.notes;
+    row.updatedAt = nowTs();
+    return assembleCustomer(this.bundleFor(row));
+  }
+
   async addContact(customerId: string, input: ContactCreate): Promise<Contact | undefined> {
     const c = this.find(customerId);
     if (!c) return undefined;
@@ -471,6 +491,38 @@ export class MemoryRepository implements Repository {
       isPrimary: input.isPrimary ?? false,
     });
     this.properties.push(row);
+    return mapProperty(row);
+  }
+
+  async updateProperty(
+    customerId: string,
+    propertyId: string,
+    input: PropertyUpdate,
+  ): Promise<Property | undefined> {
+    const c = this.find(customerId);
+    if (!c) return undefined;
+    const row = this.properties.find((p) => p.id === propertyId && p.customerId === c.id);
+    if (!row) return undefined;
+    if (input.label !== undefined) row.label = input.label;
+    if (input.addressLine1 !== undefined) row.addressLine1 = input.addressLine1;
+    if (input.addressLine2 !== undefined) row.addressLine2 = input.addressLine2;
+    if (input.city !== undefined) row.city = input.city;
+    if (input.region !== undefined) row.region = input.region;
+    if (input.postalCode !== undefined) row.postalCode = input.postalCode;
+    if (input.country !== undefined) row.country = input.country;
+    if (input.propertyType !== undefined) row.propertyType = input.propertyType;
+    if (input.bedrooms !== undefined) row.bedrooms = input.bedrooms;
+    if (input.bathrooms !== undefined) row.bathrooms = input.bathrooms;
+    if (input.squareFeet !== undefined) row.squareFeet = input.squareFeet;
+    if (input.accessNotes !== undefined) row.accessNotes = input.accessNotes;
+    if (input.isPrimary !== undefined) row.isPrimary = input.isPrimary;
+    // Promoting this property to primary demotes the customer's others.
+    if (input.isPrimary === true) {
+      for (const p of this.properties) {
+        if (p.customerId === c.id && p.id !== propertyId) p.isPrimary = false;
+      }
+    }
+    row.updatedAt = nowTs();
     return mapProperty(row);
   }
 

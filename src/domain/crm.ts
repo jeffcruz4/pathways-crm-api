@@ -84,6 +84,22 @@ export const PropertyCreate = z.object({
   accessNotes: z.string().optional(),
   isPrimary: z.boolean().optional(),
 });
+/** Partial update for PATCH /customers/:id/properties/:propertyId. */
+export const PropertyUpdate = z.object({
+  label: z.string().nullable().optional(),
+  addressLine1: z.string().min(1).optional(),
+  addressLine2: z.string().nullable().optional(),
+  city: z.string().min(1).optional(),
+  region: z.string().min(1).optional(),
+  postalCode: z.string().min(1).optional(),
+  country: z.string().length(2).optional(),
+  propertyType: PropertyType.nullable().optional(),
+  bedrooms: z.number().int().nullable().optional(),
+  bathrooms: z.number().int().nullable().optional(),
+  squareFeet: z.number().int().nullable().optional(),
+  accessNotes: z.string().nullable().optional(),
+  isPrimary: z.boolean().optional(),
+});
 
 // ── Plans ──
 export const Plan = z.object({
@@ -259,6 +275,7 @@ export type Contact = z.infer<typeof Contact>;
 export type ContactCreate = z.infer<typeof ContactCreate>;
 export type Property = z.infer<typeof Property>;
 export type PropertyCreate = z.infer<typeof PropertyCreate>;
+export type PropertyUpdate = z.infer<typeof PropertyUpdate>;
 export type Plan = z.infer<typeof Plan>;
 export type PlanCreate = z.infer<typeof PlanCreate>;
 export type Quote = z.infer<typeof Quote>;

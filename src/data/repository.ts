@@ -1,4 +1,4 @@
-import type { Customer, CustomerListItem, CustomerCreate } from "../domain/customer.js";
+import type { Customer, CustomerListItem, CustomerCreate, CustomerUpdate } from "../domain/customer.js";
 import type { Partner, PartnerListItem, PartnerCreate } from "../domain/partner.js";
 import type { TeamMember, TeamMemberListItem, TeamMemberCreate } from "../domain/team-member.js";
 import type { CustomerStats } from "../domain/customer-stats.js";
@@ -11,6 +11,7 @@ import type {
   ContactCreate,
   Property,
   PropertyCreate,
+  PropertyUpdate,
   Plan,
   PlanCreate,
   Quote,
@@ -40,10 +41,16 @@ export interface Repository {
   getCustomerStats(): Promise<CustomerStats>;
   getCustomer(id: string): Promise<Customer | undefined>;
   createCustomer(input: CustomerCreate): Promise<Customer>;
+  updateCustomer(id: string, input: CustomerUpdate): Promise<Customer | undefined>;
 
   // Customer sub-resources (the 360° record)
   addContact(customerId: string, input: ContactCreate): Promise<Contact | undefined>;
   addProperty(customerId: string, input: PropertyCreate): Promise<Property | undefined>;
+  updateProperty(
+    customerId: string,
+    propertyId: string,
+    input: PropertyUpdate,
+  ): Promise<Property | undefined>;
   createPlan(customerId: string, input: PlanCreate): Promise<Plan | undefined>;
   createQuote(customerId: string, input: QuoteCreate): Promise<Quote | undefined>;
   createJob(customerId: string, input: JobCreate): Promise<Job | undefined>;
