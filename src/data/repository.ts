@@ -20,6 +20,7 @@ import type {
   ReviewCreate,
   ServiceOffering,
   ServiceOfferingCreate,
+  ServiceOfferingUpdate,
   Appointment,
   AppointmentCreate,
 } from "../domain/crm.js";
@@ -51,6 +52,10 @@ export interface Repository {
   // Service offerings (reusable catalog / plan templates)
   listServiceOfferings(): Promise<ServiceOffering[]>;
   createServiceOffering(input: ServiceOfferingCreate): Promise<ServiceOffering>;
+  updateServiceOffering(
+    id: string,
+    input: ServiceOfferingUpdate,
+  ): Promise<ServiceOffering | undefined>;
 
   // Partners
   listPartners(): Promise<PartnerListItem[]>;

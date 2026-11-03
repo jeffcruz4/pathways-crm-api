@@ -39,6 +39,7 @@ import type {
   ReviewCreate,
   ServiceOffering,
   ServiceOfferingCreate,
+  ServiceOfferingUpdate,
   Appointment,
   AppointmentCreate,
 } from "../domain/crm.js";
@@ -412,6 +413,26 @@ export class PostgresRepository implements Repository {
       })
       .returning();
     return mapServiceOffering(row);
+  }
+
+  async updateServiceOffering(
+    id: string,
+    input: ServiceOfferingUpdate,
+  ): Promise<ServiceOffering | undefined> {
+    // Build a patch of only the provided fields.
+    const patch: Record<string, unknown> = { updatedAt: new Date() };
+    if (input.name !== undefined) patch.name = input.name;
+    if (input.serviceType !== undefined) patch.serviceType = input.serviceType;
+    if (input.frequency !== undefined) patch.frequency = input.frequency;
+    if (input.description !== undefined) patch.description = input.description;
+    if (input.defaultPriceCents !== undefined) patch.defaultPriceCents = input.defaultPriceCents;
+    if (input.isActive !== undefined) patch.isActive = input.isActive;
+    const [row] = await this.db
+      .update(schema.serviceOfferings)
+      .set(patch)
+      .where(eq(schema.serviceOfferings.id, id))
+      .returning();
+    return row ? mapServiceOffering(row) : undefined;
   }
 
   private async workerName(teamMemberId: string | null, partnerId: string | null): Promise<string | null> {
