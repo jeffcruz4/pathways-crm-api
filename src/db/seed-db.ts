@@ -23,13 +23,13 @@ async function main() {
   await db.delete(schema.customerContacts);
   await db.delete(schema.customers);
   await db.delete(schema.serviceOfferings);
-  await db.delete(schema.cleaners);
+  await db.delete(schema.teamMembers);
   await db.delete(schema.partners);
   await db.delete(schema.tenants);
 
   // Insert parent → child.
   await db.insert(schema.tenants).values(rel.tenant);
-  await db.insert(schema.cleaners).values(rel.cleaners);
+  await db.insert(schema.teamMembers).values(rel.teamMembers);
   await db.insert(schema.partners).values(rel.partners);
   await db.insert(schema.serviceOfferings).values(rel.serviceOfferings);
   await db.insert(schema.customers).values(rel.customers);
@@ -45,7 +45,7 @@ async function main() {
     `Seeded: ${rel.customers.length} customers, ${rel.contacts.length} contacts, ` +
       `${rel.properties.length} properties, ${rel.plans.length} plans, ${rel.quotes.length} quotes, ` +
       `${rel.jobs.length} jobs, ${rel.reviews.length} reviews, ${rel.appointments.length} appointments, ` +
-      `${rel.cleaners.length} cleaners, ${rel.partners.length} partners.`,
+      `${rel.teamMembers.length} team members, ${rel.partners.length} partners.`,
   );
   await sql.end();
 }

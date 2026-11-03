@@ -1,7 +1,6 @@
 CREATE TYPE "public"."appointment_kind" AS ENUM('clean', 'walkthrough', 'quote-visit', 'call', 'other');--> statement-breakpoint
 CREATE TYPE "public"."appointment_status" AS ENUM('scheduled', 'confirmed', 'completed', 'cancelled', 'no-show');--> statement-breakpoint
-CREATE TYPE "public"."assignee_type" AS ENUM('cleaner', 'partner');--> statement-breakpoint
-CREATE TYPE "public"."cleaner_status" AS ENUM('active', 'inactive', 'on-leave');--> statement-breakpoint
+CREATE TYPE "public"."assignee_type" AS ENUM('team_member', 'partner');--> statement-breakpoint
 CREATE TYPE "public"."consent_status" AS ENUM('unknown', 'opted_in', 'opted_out');--> statement-breakpoint
 CREATE TYPE "public"."contact_channel" AS ENUM('sms', 'email', 'call');--> statement-breakpoint
 CREATE TYPE "public"."contact_kind" AS ENUM('mobile', 'landline', 'email');--> statement-breakpoint
@@ -19,6 +18,7 @@ CREATE TYPE "public"."property_type" AS ENUM('house', 'apartment', 'commercial')
 CREATE TYPE "public"."quote_status" AS ENUM('draft', 'sent', 'follow-up', 'accepted', 'declined', 'expired');--> statement-breakpoint
 CREATE TYPE "public"."review_source" AS ENUM('customer', 'staff');--> statement-breakpoint
 CREATE TYPE "public"."service_type" AS ENUM('standard', 'deep', 'move-out', 'one-time');--> statement-breakpoint
+CREATE TYPE "public"."team_member_status" AS ENUM('active', 'inactive', 'on-leave');--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "appointments" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"tenant_id" uuid NOT NULL,
@@ -34,35 +34,15 @@ CREATE TABLE IF NOT EXISTS "appointments" (
 	"ends_at" timestamp with time zone,
 	"duration_min" integer,
 	"assignee_type" "assignee_type",
-	"assigned_cleaner_id" uuid,
+	"assigned_team_member_id" uuid,
 	"assigned_partner_id" uuid,
 	"location_override" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"archived_at" timestamp with time zone,
-	CONSTRAINT "appointments_assignee_ck" CHECK (("appointments"."assignee_type" IS NULL AND "appointments"."assigned_cleaner_id" IS NULL AND "appointments"."assigned_partner_id" IS NULL)
-          OR ("appointments"."assignee_type" = 'cleaner' AND "appointments"."assigned_cleaner_id" IS NOT NULL AND "appointments"."assigned_partner_id" IS NULL)
-          OR ("appointments"."assignee_type" = 'partner' AND "appointments"."assigned_partner_id" IS NOT NULL AND "appointments"."assigned_cleaner_id" IS NULL))
-);
---> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "cleaners" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"tenant_id" uuid NOT NULL,
-	"slug" text,
-	"display_name" text NOT NULL,
-	"first_name" text,
-	"last_name" text,
-	"email" text,
-	"phone" text,
-	"status" "cleaner_status" DEFAULT 'active' NOT NULL,
-	"hired_on" date,
-	"employment_type" "employment_type" DEFAULT 'full-time' NOT NULL,
-	"skills" jsonb DEFAULT '[]'::jsonb NOT NULL,
-	"home_base" text,
-	"notes" text,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"archived_at" timestamp with time zone
+	CONSTRAINT "appointments_assignee_ck" CHECK (("appointments"."assignee_type" IS NULL AND "appointments"."assigned_team_member_id" IS NULL AND "appointments"."assigned_partner_id" IS NULL)
+          OR ("appointments"."assignee_type" = 'team_member' AND "appointments"."assigned_team_member_id" IS NOT NULL AND "appointments"."assigned_partner_id" IS NULL)
+          OR ("appointments"."assignee_type" = 'partner' AND "appointments"."assigned_partner_id" IS NOT NULL AND "appointments"."assigned_team_member_id" IS NULL))
 );
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "customer_contacts" (
@@ -115,7 +95,7 @@ CREATE TABLE IF NOT EXISTS "job_reviews" (
 	"customer_note" text,
 	"reviewer" "review_source" DEFAULT 'customer' NOT NULL,
 	"would_recommend" boolean,
-	"reviewed_cleaner_id" uuid,
+	"reviewed_team_member_id" uuid,
 	"reviewed_partner_id" uuid,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -136,7 +116,7 @@ CREATE TABLE IF NOT EXISTS "jobs" (
 	"duration_min" integer,
 	"completed_at" timestamp with time zone,
 	"assignee_type" "assignee_type",
-	"assigned_cleaner_id" uuid,
+	"assigned_team_member_id" uuid,
 	"assigned_partner_id" uuid,
 	"price_cents" integer,
 	"currency" char(3) DEFAULT 'USD' NOT NULL,
@@ -144,9 +124,9 @@ CREATE TABLE IF NOT EXISTS "jobs" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"archived_at" timestamp with time zone,
-	CONSTRAINT "jobs_assignee_ck" CHECK (("jobs"."assignee_type" IS NULL AND "jobs"."assigned_cleaner_id" IS NULL AND "jobs"."assigned_partner_id" IS NULL)
-          OR ("jobs"."assignee_type" = 'cleaner' AND "jobs"."assigned_cleaner_id" IS NOT NULL AND "jobs"."assigned_partner_id" IS NULL)
-          OR ("jobs"."assignee_type" = 'partner' AND "jobs"."assigned_partner_id" IS NOT NULL AND "jobs"."assigned_cleaner_id" IS NULL))
+	CONSTRAINT "jobs_assignee_ck" CHECK (("jobs"."assignee_type" IS NULL AND "jobs"."assigned_team_member_id" IS NULL AND "jobs"."assigned_partner_id" IS NULL)
+          OR ("jobs"."assignee_type" = 'team_member' AND "jobs"."assigned_team_member_id" IS NOT NULL AND "jobs"."assigned_partner_id" IS NULL)
+          OR ("jobs"."assignee_type" = 'partner' AND "jobs"."assigned_partner_id" IS NOT NULL AND "jobs"."assigned_team_member_id" IS NULL))
 );
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "partners" (
@@ -254,6 +234,26 @@ CREATE TABLE IF NOT EXISTS "service_offerings" (
 	"archived_at" timestamp with time zone
 );
 --> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "team_members" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid NOT NULL,
+	"slug" text,
+	"display_name" text NOT NULL,
+	"first_name" text,
+	"last_name" text,
+	"email" text,
+	"phone" text,
+	"status" "team_member_status" DEFAULT 'active' NOT NULL,
+	"hired_on" date,
+	"employment_type" "employment_type" DEFAULT 'full-time' NOT NULL,
+	"skills" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"home_base" text,
+	"notes" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"archived_at" timestamp with time zone
+);
+--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "tenants" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"name" text NOT NULL,
@@ -293,19 +293,13 @@ EXCEPTION
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "appointments" ADD CONSTRAINT "appointments_assigned_cleaner_id_cleaners_id_fk" FOREIGN KEY ("assigned_cleaner_id") REFERENCES "public"."cleaners"("id") ON DELETE no action ON UPDATE no action;
+ ALTER TABLE "appointments" ADD CONSTRAINT "appointments_assigned_team_member_id_team_members_id_fk" FOREIGN KEY ("assigned_team_member_id") REFERENCES "public"."team_members"("id") ON DELETE no action ON UPDATE no action;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
  ALTER TABLE "appointments" ADD CONSTRAINT "appointments_assigned_partner_id_partners_id_fk" FOREIGN KEY ("assigned_partner_id") REFERENCES "public"."partners"("id") ON DELETE no action ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "cleaners" ADD CONSTRAINT "cleaners_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE no action ON UPDATE no action;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
@@ -353,7 +347,7 @@ EXCEPTION
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "job_reviews" ADD CONSTRAINT "job_reviews_reviewed_cleaner_id_cleaners_id_fk" FOREIGN KEY ("reviewed_cleaner_id") REFERENCES "public"."cleaners"("id") ON DELETE no action ON UPDATE no action;
+ ALTER TABLE "job_reviews" ADD CONSTRAINT "job_reviews_reviewed_team_member_id_team_members_id_fk" FOREIGN KEY ("reviewed_team_member_id") REFERENCES "public"."team_members"("id") ON DELETE no action ON UPDATE no action;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
@@ -395,7 +389,7 @@ EXCEPTION
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "jobs" ADD CONSTRAINT "jobs_assigned_cleaner_id_cleaners_id_fk" FOREIGN KEY ("assigned_cleaner_id") REFERENCES "public"."cleaners"("id") ON DELETE no action ON UPDATE no action;
+ ALTER TABLE "jobs" ADD CONSTRAINT "jobs_assigned_team_member_id_team_members_id_fk" FOREIGN KEY ("assigned_team_member_id") REFERENCES "public"."team_members"("id") ON DELETE no action ON UPDATE no action;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
@@ -478,9 +472,14 @@ EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "team_members" ADD CONSTRAINT "team_members_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE no action ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "appointments_start_idx" ON "appointments" USING btree ("tenant_id","starts_at");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "appointments_customer_idx" ON "appointments" USING btree ("customer_id");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "cleaners_tenant_idx" ON "cleaners" USING btree ("tenant_id");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "customer_contacts_primary_uq" ON "customer_contacts" USING btree ("tenant_id","customer_id","kind") WHERE "customer_contacts"."is_primary";--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "customer_contacts_customer_idx" ON "customer_contacts" USING btree ("customer_id");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "customers_tenant_slug_uq" ON "customers" USING btree ("tenant_id","slug");--> statement-breakpoint
@@ -496,4 +495,5 @@ CREATE INDEX IF NOT EXISTS "plans_property_idx" ON "plans" USING btree ("propert
 CREATE INDEX IF NOT EXISTS "properties_customer_idx" ON "properties" USING btree ("customer_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "quotes_customer_idx" ON "quotes" USING btree ("customer_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "quotes_status_idx" ON "quotes" USING btree ("tenant_id","status");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "service_offerings_tenant_idx" ON "service_offerings" USING btree ("tenant_id");
+CREATE INDEX IF NOT EXISTS "service_offerings_tenant_idx" ON "service_offerings" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "team_members_tenant_idx" ON "team_members" USING btree ("tenant_id");

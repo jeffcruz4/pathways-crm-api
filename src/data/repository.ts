@@ -1,6 +1,6 @@
 import type { Customer, CustomerListItem, CustomerCreate } from "../domain/customer.js";
 import type { Partner, PartnerListItem, PartnerCreate } from "../domain/partner.js";
-import type { Cleaner, CleanerListItem, CleanerCreate } from "../domain/cleaner.js";
+import type { TeamMember, TeamMemberListItem, TeamMemberCreate } from "../domain/team-member.js";
 import type { Pipeline } from "../domain/deal.js";
 import type { ConvoListItem, ConversationDetail } from "../domain/conversation.js";
 import type { CalendarWeek, Digest } from "../domain/calendar.js";
@@ -47,9 +47,9 @@ export interface Repository {
   getPartner(id: string): Promise<Partner | undefined>;
   createPartner(input: PartnerCreate): Promise<Partner>;
 
-  // Cleaners (full-time staff)
-  listCleaners(): Promise<CleanerListItem[]>;
-  createCleaner(input: CleanerCreate): Promise<Cleaner>;
+  // Team members (full-time staff)
+  listTeamMembers(): Promise<TeamMemberListItem[]>;
+  createTeamMember(input: TeamMemberCreate): Promise<TeamMember>;
 
   // Pipeline
   getPipeline(): Promise<Pipeline>;

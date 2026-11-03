@@ -233,7 +233,7 @@ export function assembleCustomer(b: CustomerBundle, now = new Date()): Customer 
       return zd - ad;
     })
     .map((j) => {
-      const workerId = j.assignedCleanerId ?? j.assignedPartnerId ?? null;
+      const workerId = j.assignedTeamMemberId ?? j.assignedPartnerId ?? null;
       const name = workerId ? (b.workerNameById.get(workerId) ?? null) : null;
       return mapJob(j, b.reviewsByJob.get(j.id), name);
     });
