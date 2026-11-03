@@ -36,6 +36,7 @@ import type {
   ReviewCreate,
   ServiceOffering,
   ServiceOfferingCreate,
+  ServiceOfferingUpdate,
   Appointment,
   AppointmentCreate,
 } from "../domain/crm.js";
@@ -616,6 +617,22 @@ export class MemoryRepository implements Repository {
       isActive: input.isActive ?? true,
     });
     this.offerings.push(row);
+    return mapServiceOffering(row);
+  }
+
+  async updateServiceOffering(
+    id: string,
+    input: ServiceOfferingUpdate,
+  ): Promise<ServiceOffering | undefined> {
+    const row = this.offerings.find((o) => o.id === id);
+    if (!row) return undefined;
+    if (input.name !== undefined) row.name = input.name;
+    if (input.serviceType !== undefined) row.serviceType = input.serviceType;
+    if (input.frequency !== undefined) row.frequency = input.frequency;
+    if (input.description !== undefined) row.description = input.description;
+    if (input.defaultPriceCents !== undefined) row.defaultPriceCents = input.defaultPriceCents;
+    if (input.isActive !== undefined) row.isActive = input.isActive;
+    row.updatedAt = nowTs();
     return mapServiceOffering(row);
   }
 

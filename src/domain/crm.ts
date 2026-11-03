@@ -209,6 +209,15 @@ export const ServiceOfferingCreate = z.object({
   defaultPriceCents: z.number().int().nonnegative().optional(),
   isActive: z.boolean().optional(),
 });
+/** Partial update for PATCH /service-offerings/:id. */
+export const ServiceOfferingUpdate = z.object({
+  name: z.string().min(1).optional(),
+  serviceType: ServiceType.optional(),
+  frequency: PlanFrequency.optional(),
+  description: z.string().nullable().optional(),
+  defaultPriceCents: z.number().int().nonnegative().nullable().optional(),
+  isActive: z.boolean().optional(),
+});
 
 // ── Appointments (calendar events; service + non-service) ──
 export const Appointment = z.object({
@@ -260,5 +269,6 @@ export type Job = z.infer<typeof Job>;
 export type JobCreate = z.infer<typeof JobCreate>;
 export type ServiceOffering = z.infer<typeof ServiceOffering>;
 export type ServiceOfferingCreate = z.infer<typeof ServiceOfferingCreate>;
+export type ServiceOfferingUpdate = z.infer<typeof ServiceOfferingUpdate>;
 export type Appointment = z.infer<typeof Appointment>;
 export type AppointmentCreate = z.infer<typeof AppointmentCreate>;
