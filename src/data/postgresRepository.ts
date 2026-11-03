@@ -19,7 +19,7 @@ import {
   partnerDetail,
   type CustomerBundle,
 } from "./assemble.js";
-import type { Customer, CustomerListItem, CustomerCreate } from "../domain/customer.js";
+import type { Customer, CustomerListItem, CustomerCreate, CustomerUpdate } from "../domain/customer.js";
 import type { Partner, PartnerListItem, PartnerCreate } from "../domain/partner.js";
 import type { TeamMember, TeamMemberListItem, TeamMemberCreate } from "../domain/team-member.js";
 import type { CustomerStats } from "../domain/customer-stats.js";
@@ -31,6 +31,7 @@ import type {
   ContactCreate,
   Property,
   PropertyCreate,
+  PropertyUpdate,
   Plan,
   PlanCreate,
   Quote,
@@ -202,6 +203,30 @@ export class PostgresRepository implements Repository {
     return assembleCustomer(await this.bundleFor(c));
   }
 
+  async updateCustomer(id: string, input: CustomerUpdate): Promise<Customer | undefined> {
+    const existing = await this.resolveCustomer(id);
+    if (!existing) return undefined;
+    const patch: Record<string, unknown> = { updatedAt: new Date() };
+    if (input.name !== undefined) patch.displayName = input.name;
+    if (input.firstName !== undefined) patch.firstName = input.firstName;
+    if (input.lastName !== undefined) patch.lastName = input.lastName;
+    if (input.companyName !== undefined) patch.companyName = input.companyName;
+    if (input.status !== undefined) patch.status = input.status;
+    if (input.stage !== undefined) patch.lifecycleStage = input.stage;
+    if (input.preferredContact !== undefined) patch.preferredContact = input.preferredContact;
+    if (input.source !== undefined) patch.source = input.source;
+    if (input.summary !== undefined) patch.summary = input.summary;
+    if (input.tags !== undefined) patch.tags = input.tags;
+    if (input.goodToKnow !== undefined) patch.goodToKnow = input.goodToKnow;
+    if (input.notes !== undefined) patch.notes = input.notes;
+    const [c] = await this.db
+      .update(schema.customers)
+      .set(patch)
+      .where(eq(schema.customers.id, existing.id))
+      .returning();
+    return assembleCustomer(await this.bundleFor(c));
+  }
+
   // ── Customer sub-resources ──
   async addContact(customerId: string, input: ContactCreate): Promise<Contact | undefined> {
     const c = await this.resolveCustomer(customerId);
@@ -245,6 +270,51 @@ export class PostgresRepository implements Repository {
         accessNotes: input.accessNotes,
         isPrimary: input.isPrimary ?? false,
       })
+      .returning();
+    return mapProperty(row);
+  }
+
+  async updateProperty(
+    customerId: string,
+    propertyId: string,
+    input: PropertyUpdate,
+  ): Promise<Property | undefined> {
+    const c = await this.resolveCustomer(customerId);
+    if (!c) return undefined;
+    // Scope the property to this customer so you can't edit someone else's.
+    const [existing] = await this.db
+      .select()
+      .from(schema.properties)
+      .where(and(eq(schema.properties.id, propertyId), eq(schema.properties.customerId, c.id)));
+    if (!existing) return undefined;
+
+    const patch: Record<string, unknown> = { updatedAt: new Date() };
+    if (input.label !== undefined) patch.label = input.label;
+    if (input.addressLine1 !== undefined) patch.addressLine1 = input.addressLine1;
+    if (input.addressLine2 !== undefined) patch.addressLine2 = input.addressLine2;
+    if (input.city !== undefined) patch.city = input.city;
+    if (input.region !== undefined) patch.region = input.region;
+    if (input.postalCode !== undefined) patch.postalCode = input.postalCode;
+    if (input.country !== undefined) patch.country = input.country;
+    if (input.propertyType !== undefined) patch.propertyType = input.propertyType;
+    if (input.bedrooms !== undefined) patch.bedrooms = input.bedrooms;
+    if (input.bathrooms !== undefined) patch.bathrooms = input.bathrooms;
+    if (input.squareFeet !== undefined) patch.squareFeet = input.squareFeet;
+    if (input.accessNotes !== undefined) patch.accessNotes = input.accessNotes;
+    if (input.isPrimary !== undefined) patch.isPrimary = input.isPrimary;
+
+    // Promoting this property to primary demotes the customer's others.
+    if (input.isPrimary === true) {
+      await this.db
+        .update(schema.properties)
+        .set({ isPrimary: false, updatedAt: new Date() })
+        .where(and(eq(schema.properties.customerId, c.id), eq(schema.properties.isPrimary, true)));
+    }
+
+    const [row] = await this.db
+      .update(schema.properties)
+      .set(patch)
+      .where(eq(schema.properties.id, propertyId))
       .returning();
     return mapProperty(row);
   }

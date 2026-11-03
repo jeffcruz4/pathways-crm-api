@@ -1,10 +1,11 @@
 import type { FastifyInstance } from "fastify";
 import type { Repository } from "../data/index.js";
 import { parseBody } from "./validate.js";
-import { CustomerCreate } from "../domain/customer.js";
+import { CustomerCreate, CustomerUpdate } from "../domain/customer.js";
 import {
   ContactCreate,
   PropertyCreate,
+  PropertyUpdate,
   PlanCreate,
   QuoteCreate,
   JobCreate,
@@ -42,6 +43,16 @@ export function customerRoutes(repo: Repository) {
       return reply.code(201).send(customer);
     });
 
+    // ── Edit a customer (identity + presentation fields) ──
+    app.patch<{ Params: { id: string } }>("/customers/:id", async (req, reply) => {
+      const input = parseBody(CustomerUpdate, req.body, reply);
+      if (!input) return;
+      const updated = await repo.updateCustomer(req.params.id, input);
+      return updated
+        ? updated
+        : reply.code(404).send({ error: "not_found", message: "Customer not found" });
+    });
+
     // ── Sub-resources: build the 360° record ──
     const notFound = (reply: import("fastify").FastifyReply) =>
       reply.code(404).send({ error: "not_found", message: "Customer not found" });
@@ -59,6 +70,18 @@ export function customerRoutes(repo: Repository) {
       const created = await repo.addProperty(req.params.id, input);
       return created ? reply.code(201).send(created) : notFound(reply);
     });
+
+    app.patch<{ Params: { id: string; propertyId: string } }>(
+      "/customers/:id/properties/:propertyId",
+      async (req, reply) => {
+        const input = parseBody(PropertyUpdate, req.body, reply);
+        if (!input) return;
+        const updated = await repo.updateProperty(req.params.id, req.params.propertyId, input);
+        return updated
+          ? updated
+          : reply.code(404).send({ error: "not_found", message: "Customer or property not found" });
+      },
+    );
 
     app.post<{ Params: { id: string } }>("/customers/:id/plans", async (req, reply) => {
       const input = parseBody(PlanCreate, req.body, reply);

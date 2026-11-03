@@ -99,8 +99,25 @@ export const CustomerCreate = z.object({
   email: z.string().optional(),
 });
 
+/** Partial update for PATCH /customers/:id (identity + presentation fields). */
+export const CustomerUpdate = z.object({
+  name: z.string().min(1).optional(),
+  firstName: z.string().nullable().optional(),
+  lastName: z.string().nullable().optional(),
+  companyName: z.string().nullable().optional(),
+  status: CustomerStatus.optional(),
+  stage: CustomerStage.optional(),
+  preferredContact: ContactChannel.nullable().optional(),
+  source: z.string().nullable().optional(),
+  summary: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  goodToKnow: z.array(z.string()).optional(),
+  notes: z.string().nullable().optional(),
+});
+
 export type Customer = z.infer<typeof Customer>;
 export type CustomerListItem = z.infer<typeof CustomerListItem>;
 export type CustomerCreate = z.infer<typeof CustomerCreate>;
+export type CustomerUpdate = z.infer<typeof CustomerUpdate>;
 export type CustomerStatus = z.infer<typeof CustomerStatus>;
 export type CustomerStage = z.infer<typeof CustomerStage>;

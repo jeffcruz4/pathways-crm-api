@@ -12,6 +12,20 @@ Stood the API up from a read-only `/home` scaffold to a relational,
 multi-tenant CRM backend with create endpoints, a dedicated RDS instance, and a
 turnkey deploy + local-dev story.
 
+### #18 · edit customer + edit property (PATCH)
+*(pending)*
+- `domain/customer.ts`: `CustomerUpdate` (partial — identity + status/stage,
+  summary, tags, goodToKnow, notes).
+- `domain/crm.ts`: `PropertyUpdate` (partial — address + home facts + primary).
+- Repository (both backends): `updateCustomer(id, input)` and
+  `updateProperty(customerId, propertyId, input)`. Property edits are scoped to
+  the customer (can't edit another customer's property); promoting a property to
+  primary demotes the customer's other properties so exactly one stays primary.
+- Routes: `PATCH /customers/:id` and `PATCH /customers/:id/properties/:propertyId`
+  (Zod-validated, 404 when the customer/property isn't found).
+- Unblocks the Customer Record restructure: hero edit-customer action and the
+  Home Details "Edit" → edit-property flow.
+
 ### #17 · customer dashboard stats endpoint + seed date-spread
 *(pending)*
 - `domain/customer-stats.ts`: `CustomerStats` contract — per-status counts
