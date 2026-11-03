@@ -12,6 +12,8 @@ import {
   mapQuote,
   mapReview,
   mapJob,
+  mapServiceOffering,
+  mapAppointment,
   partnerListItem,
   partnerDetail,
   type CustomerBundle,
@@ -32,6 +34,10 @@ import type {
   JobCreate,
   Review,
   ReviewCreate,
+  ServiceOffering,
+  ServiceOfferingCreate,
+  Appointment,
+  AppointmentCreate,
 } from "../domain/crm.js";
 
 type CustomerRow = InferSelectModel<typeof schema.customers>;
@@ -43,6 +49,8 @@ type JobRow = InferSelectModel<typeof schema.jobs>;
 type ReviewRow = InferSelectModel<typeof schema.jobReviews>;
 type TeamMemberRow = InferSelectModel<typeof schema.teamMembers>;
 type PartnerRow = InferSelectModel<typeof schema.partners>;
+type OfferingRow = InferSelectModel<typeof schema.serviceOfferings>;
+type AppointmentRow = InferSelectModel<typeof schema.appointments>;
 
 const nowTs = () => new Date();
 
@@ -62,12 +70,15 @@ export class MemoryRepository implements Repository {
   private reviews: ReviewRow[] = [];
   private teamMembers: TeamMemberRow[] = [];
   private partners: PartnerRow[] = [];
+  private offerings: OfferingRow[] = [];
+  private appointments: AppointmentRow[] = [];
   private workerNames = new Map<string, string>();
   private readonly tenantId = rel.tenant.id!;
 
   constructor() {
     this.teamMembers = rel.teamMembers.map((c) => this.fillTeamMember(c));
     this.partners = rel.partners.map((p) => this.fillPartner(p));
+    this.offerings = rel.serviceOfferings.map((o) => this.fillOffering(o));
     // Normalize insert-model seed rows into full select-model rows.
     this.customers = rel.customers.map((c) => this.fillCustomer(c));
     this.contacts = rel.contacts.map((c) => this.fillContact(c));
@@ -76,6 +87,7 @@ export class MemoryRepository implements Repository {
     this.quotes = rel.quotes.map((q) => this.fillQuote(q));
     this.jobs = rel.jobs.map((j) => this.fillJob(j));
     this.reviews = rel.reviews.map((r) => this.fillReview(r));
+    this.appointments = rel.appointments.map((a) => this.fillAppointment(a));
     for (const e of rel.teamMembers) this.workerNames.set(e.id!, e.displayName);
     for (const p of rel.partners) this.workerNames.set(p.id!, p.displayName);
   }
@@ -275,6 +287,46 @@ export class MemoryRepository implements Repository {
       commissionBps: p.commissionBps ?? null,
       summary: p.summary ?? "",
       notes: p.notes ?? null,
+      createdAt: nowTs(),
+      updatedAt: nowTs(),
+      archivedAt: null,
+    };
+  }
+  private fillOffering(o: (typeof rel.serviceOfferings)[number]): OfferingRow {
+    return {
+      id: o.id ?? randomUUID(),
+      tenantId: o.tenantId,
+      name: o.name,
+      serviceType: o.serviceType,
+      frequency: o.frequency,
+      description: o.description ?? null,
+      defaultPriceCents: o.defaultPriceCents ?? null,
+      currency: o.currency ?? "USD",
+      isActive: o.isActive ?? true,
+      createdAt: nowTs(),
+      updatedAt: nowTs(),
+      archivedAt: null,
+    };
+  }
+  private fillAppointment(a: (typeof rel.appointments)[number]): AppointmentRow {
+    return {
+      id: a.id ?? randomUUID(),
+      tenantId: a.tenantId,
+      customerId: a.customerId ?? null,
+      propertyId: a.propertyId ?? null,
+      jobId: a.jobId ?? null,
+      quoteId: a.quoteId ?? null,
+      kind: a.kind,
+      status: a.status ?? "scheduled",
+      title: a.title,
+      detail: a.detail ?? null,
+      startsAt: a.startsAt instanceof Date ? a.startsAt : new Date(a.startsAt as string),
+      endsAt: a.endsAt ? (a.endsAt instanceof Date ? a.endsAt : new Date(a.endsAt as string)) : null,
+      durationMin: a.durationMin ?? null,
+      assigneeType: a.assigneeType ?? null,
+      assignedTeamMemberId: a.assignedTeamMemberId ?? null,
+      assignedPartnerId: a.assignedPartnerId ?? null,
+      locationOverride: a.locationOverride ?? null,
       createdAt: nowTs(),
       updatedAt: nowTs(),
       archivedAt: null,
@@ -505,6 +557,66 @@ export class MemoryRepository implements Repository {
     });
     this.reviews.push(row);
     return mapReview(row);
+  }
+
+  async listAppointments(customerId: string): Promise<Appointment[] | undefined> {
+    const c = this.find(customerId);
+    if (!c) return undefined;
+    return this.appointments
+      .filter((a) => a.customerId === c.id)
+      .sort((x, z) => x.startsAt.getTime() - z.startsAt.getTime())
+      .map((a) => {
+        const wid = a.assignedTeamMemberId ?? a.assignedPartnerId ?? null;
+        return mapAppointment(a, wid ? (this.workerNames.get(wid) ?? null) : null);
+      });
+  }
+
+  async createAppointment(
+    customerId: string,
+    input: AppointmentCreate,
+  ): Promise<Appointment | undefined> {
+    const c = this.find(customerId);
+    if (!c) return undefined;
+    const row = this.fillAppointment({
+      tenantId: c.tenantId,
+      customerId: c.id,
+      propertyId: input.propertyId,
+      jobId: input.jobId,
+      quoteId: input.quoteId,
+      kind: input.kind,
+      status: input.status ?? "scheduled",
+      title: input.title,
+      detail: input.detail,
+      startsAt: new Date(input.startsAt),
+      endsAt: input.endsAt ? new Date(input.endsAt) : undefined,
+      durationMin: input.durationMin,
+      assigneeType: input.assigneeType,
+      assignedTeamMemberId: input.assignedTeamMemberId,
+      assignedPartnerId: input.assignedPartnerId,
+      locationOverride: input.locationOverride,
+    });
+    this.appointments.push(row);
+    const wid = row.assignedTeamMemberId ?? row.assignedPartnerId ?? null;
+    return mapAppointment(row, wid ? (this.workerNames.get(wid) ?? null) : null);
+  }
+
+  // ── Service offerings ──
+  async listServiceOfferings(): Promise<ServiceOffering[]> {
+    return this.offerings.map(mapServiceOffering);
+  }
+
+  async createServiceOffering(input: ServiceOfferingCreate): Promise<ServiceOffering> {
+    const row = this.fillOffering({
+      tenantId: this.tenantId,
+      name: input.name,
+      serviceType: input.serviceType,
+      frequency: input.frequency,
+      description: input.description,
+      defaultPriceCents: input.defaultPriceCents,
+      isActive: input.isActive ?? true,
+    });
+    this.offerings.push(row);
+    return mapServiceOffering(row);
   }
 
   // ── Partners ──

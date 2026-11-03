@@ -10,7 +10,16 @@ import type { InferSelectModel } from "drizzle-orm";
 import * as schema from "../db/schema.js";
 import { formatMoney } from "../domain/money.js";
 import type { Customer } from "../domain/customer.js";
-import type { Contact, Property, Plan, Quote, Job, Review } from "../domain/crm.js";
+import type {
+  Contact,
+  Property,
+  Plan,
+  Quote,
+  Job,
+  Review,
+  ServiceOffering,
+  Appointment,
+} from "../domain/crm.js";
 import type { Partner, PartnerListItem } from "../domain/partner.js";
 
 type CustomerRow = InferSelectModel<typeof schema.customers>;
@@ -21,8 +30,42 @@ type QuoteRow = InferSelectModel<typeof schema.quotes>;
 type JobRow = InferSelectModel<typeof schema.jobs>;
 type ReviewRow = InferSelectModel<typeof schema.jobReviews>;
 type PartnerRow = InferSelectModel<typeof schema.partners>;
+type OfferingRow = InferSelectModel<typeof schema.serviceOfferings>;
+type AppointmentRow = InferSelectModel<typeof schema.appointments>;
 
 const iso = (d: Date | null): string | null => (d ? d.toISOString() : null);
+
+export function mapServiceOffering(r: OfferingRow): ServiceOffering {
+  return {
+    id: r.id,
+    name: r.name,
+    serviceType: r.serviceType,
+    frequency: r.frequency,
+    description: r.description,
+    defaultPrice: r.defaultPriceCents == null ? null : formatMoney(r.defaultPriceCents, r.currency),
+    isActive: r.isActive,
+  };
+}
+
+export function mapAppointment(r: AppointmentRow, assigneeName: string | null): Appointment {
+  return {
+    id: r.id,
+    customerId: r.customerId,
+    propertyId: r.propertyId,
+    jobId: r.jobId,
+    quoteId: r.quoteId,
+    kind: r.kind,
+    status: r.status,
+    title: r.title,
+    detail: r.detail,
+    startsAt: r.startsAt.toISOString(),
+    endsAt: iso(r.endsAt),
+    durationMin: r.durationMin,
+    assigneeType: r.assigneeType,
+    assigneeName,
+    locationOverride: r.locationOverride,
+  };
+}
 
 // ── Partners (rollups leads/jobs/value derived; 0 until computed — design Q6) ──
 export function partnerListItem(r: PartnerRow): PartnerListItem {
