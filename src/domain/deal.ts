@@ -8,6 +8,9 @@ export const DealStageId = z.enum(["new", "needs-quote", "quote-sent", "follow-u
 export const Deal = z.object({
   id: z.string(),
   stageId: DealStageId,
+  /** The customer this quote belongs to (for the pipeline slide-out link). */
+  customerId: z.string(),
+  customerName: z.string(),
   name: z.string(),
   price: z.number().optional(),
   priceUnit: z.enum(["visit", "flat"]).optional(),

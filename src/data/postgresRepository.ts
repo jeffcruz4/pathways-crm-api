@@ -785,7 +785,11 @@ export class PostgresRepository implements Repository {
 
   // ── Pipeline = quotes grouped by status (design Q1) ──
   async getPipeline(): Promise<Pipeline> {
-    const rows = await this.db.select().from(schema.quotes);
+    const [rows, customers] = await Promise.all([
+      this.db.select().from(schema.quotes),
+      this.db.select().from(schema.customers),
+    ]);
+    const nameById = new Map(customers.map((c) => [c.id, c.displayName]));
     const stats = assemblePipelineStats(rows);
     const stages: PipelineStage[] = PIPELINE_STAGES.map((meta) => ({
       id: meta.id as PipelineStage["id"],
@@ -796,6 +800,8 @@ export class PostgresRepository implements Repository {
         .map((q) => ({
           id: q.id,
           stageId: meta.id as PipelineStage["id"],
+          customerId: q.customerId,
+          customerName: nameById.get(q.customerId) ?? "Customer",
           name: q.detail ?? "Quote",
           price: q.amountCents != null ? Math.round(q.amountCents / 100) : undefined,
           priceUnit: q.priceUnit === "per-visit" ? ("visit" as const) : ("flat" as const),

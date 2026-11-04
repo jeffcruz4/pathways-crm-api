@@ -924,6 +924,8 @@ export class MemoryRepository implements Repository {
         .map((q) => ({
           id: q.id,
           stageId: meta.id as "new" | "needs-quote" | "quote-sent" | "follow-up" | "booked",
+          customerId: q.customerId,
+          customerName: this.customers.find((c) => c.id === q.customerId)?.displayName ?? "Customer",
           name: q.detail ?? "Quote",
           price: q.amountCents != null ? Math.round(q.amountCents / 100) : undefined,
           priceUnit: q.priceUnit === "per-visit" ? ("visit" as const) : ("flat" as const),
