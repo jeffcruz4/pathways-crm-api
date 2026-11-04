@@ -719,3 +719,179 @@ export function searchCorpus(corpus: SearchCorpus, rawQuery: string): SearchResu
   }
   return { query, total, groups };
 }
+
+// ── Team member rollups + spotlight (review → job → team member) ──
+
+type ReviewRowT = ReviewRow;
+
+/** Mean of ratings (1–5) rounded to 1 decimal; null when there are none. */
+function meanRating(ratings: number[]): number | null {
+  if (ratings.length === 0) return null;
+  const m = ratings.reduce((s, n) => s + n, 0) / ratings.length;
+  return Math.round(m * 10) / 10;
+}
+
+/**
+ * Per-team-member rollups: jobs completed, review count, and average rating.
+ * A review belongs to a team member through its job (job.assignedTeamMemberId);
+ * the review's own reviewedTeamMemberId is honored too (set at write time).
+ */
+export function teamMemberRollups(
+  teamMemberId: string,
+  jobs: JobRow[],
+  reviews: ReviewRowT[],
+): { jobsCompleted: number; reviewCount: number; avgRating: number | null } {
+  const mine = jobs.filter((j) => !j.archivedAt && j.assignedTeamMemberId === teamMemberId);
+  const myJobIds = new Set(mine.map((j) => j.id));
+  const myReviews = reviews.filter(
+    (r) => myJobIds.has(r.jobId) || r.reviewedTeamMemberId === teamMemberId,
+  );
+  return {
+    jobsCompleted: mine.filter((j) => j.status === "completed").length,
+    reviewCount: myReviews.length,
+    avgRating: meanRating(myReviews.map((r) => r.rating).filter((n): n is number => n != null)),
+  };
+}
+
+/**
+ * Team-screen stats: filter-tab counts + the most recent reviews attributed to
+ * team members (review → job → assigned team member), newest first.
+ */
+export function assembleTeamStats(
+  teamMembers: TeamMemberRow[],
+  jobs: JobRow[],
+  reviews: ReviewRowT[],
+  customers: CustomerRow[],
+  limit = 6,
+): import("../domain/team-member.js").TeamStats {
+  const live = teamMembers.filter((t) => !t.archivedAt);
+  const counts = {
+    total: live.length,
+    active: live.filter((t) => t.status === "active").length,
+    onLeave: live.filter((t) => t.status === "on-leave").length,
+    inactive: live.filter((t) => t.status === "inactive").length,
+  };
+
+  const memberById = new Map(live.map((t) => [t.id, t]));
+  const jobById = new Map(jobs.map((j) => [j.id, j]));
+  const customerById = new Map(customers.map((c) => [c.id, c]));
+
+  const spotlight: import("../domain/team-member.js").TeamSpotlightReview[] = [];
+  for (const r of reviews) {
+    const job = jobById.get(r.jobId);
+    // Attribute via the job's assigned team member (fall back to the review's own).
+    const memberId = job?.assignedTeamMemberId ?? r.reviewedTeamMemberId;
+    const member = memberId ? memberById.get(memberId) : undefined;
+    if (!member) continue;
+    // Spotlight only reviews with something to show.
+    if (r.rating == null && !r.reviewText) continue;
+    const when = job?.completedAt ?? r.createdAt;
+    spotlight.push({
+      id: r.id,
+      teamMemberId: member.id,
+      teamMemberName: member.displayName,
+      customerId: r.customerId,
+      customerName: customerById.get(r.customerId)?.displayName ?? "Customer",
+      rating: r.rating,
+      reviewText: r.reviewText,
+      serviceType: job?.serviceType ?? "standard",
+      date: when.toISOString(),
+    });
+  }
+  spotlight.sort((a, z) => z.date.localeCompare(a.date));
+  return { counts, spotlightReviews: spotlight.slice(0, limit) };
+}
+
+// ── Partner highlights (producer / rated / revenue) ──
+
+/**
+ * Partner highlights for the Partners screen.
+ *
+ * "Production" = revenue a partner brought in, counted two ways without
+ * double-counting: completed jobs the partner covered (contractor work) plus
+ * completed jobs for customers they referred (lead-gen). Each job counts once
+ * per partner. Total revenue is the de-duplicated union across all partners.
+ * "Top rated" is the highest average review rating among partners that cover
+ * jobs (contractors), requiring at least one rating.
+ */
+export function assemblePartnerHighlights(
+  partners: PartnerRow[],
+  customers: CustomerRow[],
+  jobs: JobRow[],
+  reviews: ReviewRowT[],
+): import("../domain/partner.js").PartnerHighlights {
+  const livePartners = partners.filter((p) => !p.archivedAt);
+  const completed = jobs.filter((j) => !j.archivedAt && j.status === "completed");
+  const jobById = new Map(jobs.map((j) => [j.id, j]));
+
+  const production = new Map<string, number>(); // partnerId → cents
+  const revenueJobCents = new Map<string, number>(); // jobId → cents (de-duped union for the total)
+
+  for (const p of livePartners) {
+    const referredIds = new Set(customers.filter((c) => c.referredByPartnerId === p.id).map((c) => c.id));
+    const credited = new Map<string, number>(); // jobId → cents, de-duped per partner
+    for (const j of completed) {
+      if (j.assignedPartnerId === p.id || referredIds.has(j.customerId)) {
+        credited.set(j.id, j.priceCents ?? 0);
+      }
+    }
+    let cents = 0;
+    for (const [jobId, c] of credited) {
+      cents += c;
+      revenueJobCents.set(jobId, c);
+    }
+    production.set(p.id, cents);
+  }
+
+  const totalCents = Array.from(revenueJobCents.values()).reduce((s, c) => s + c, 0);
+
+  // Top producer: highest production > 0.
+  let topProducer: import("../domain/partner.js").PartnerSpotlight | null = null;
+  let bestCents = 0;
+  for (const p of livePartners) {
+    const cents = production.get(p.id) ?? 0;
+    if (cents > bestCents) {
+      bestCents = cents;
+      topProducer = {
+        id: p.id,
+        name: p.displayName,
+        type: p.type,
+        metric: formatMoney(cents).display,
+        metricLabel: "Revenue brought in",
+      };
+    }
+  }
+
+  // Top rated: avg rating of reviews on jobs a partner covered (contractors).
+  let topRated: import("../domain/partner.js").PartnerSpotlight | null = null;
+  let bestAvg = -1;
+  let bestCount = 0;
+  for (const p of livePartners) {
+    if (p.type === "lead-gen") continue; // contractors only
+    const ratings = reviews
+      .filter((r) => {
+        const job = jobById.get(r.jobId);
+        return (job?.assignedPartnerId ?? r.reviewedPartnerId) === p.id && r.rating != null;
+      })
+      .map((r) => r.rating as number);
+    const avg = meanRating(ratings);
+    if (avg != null && (avg > bestAvg || (avg === bestAvg && ratings.length > bestCount))) {
+      bestAvg = avg;
+      bestCount = ratings.length;
+      topRated = {
+        id: p.id,
+        name: p.displayName,
+        type: p.type,
+        metric: avg.toFixed(1),
+        metricLabel: `Avg rating · ${ratings.length} review${ratings.length === 1 ? "" : "s"}`,
+      };
+    }
+  }
+
+  return {
+    topProducer,
+    topRated,
+    totalRevenue: formatMoney(totalCents),
+    producingPartners: Array.from(production.values()).filter((c) => c > 0).length,
+  };
+}

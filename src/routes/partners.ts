@@ -10,6 +10,10 @@ export function partnerRoutes(repo: Repository) {
       return { items };
     });
 
+    // Highlights (top producer / top rated / total revenue) for the Partners
+    // screen. Static path; Fastify matches it ahead of `/partners/:id`.
+    app.get("/partners/stats", async () => repo.getPartnerHighlights());
+
     app.get<{ Params: { id: string } }>("/partners/:id", async (req, reply) => {
       const partner = await repo.getPartner(req.params.id);
       if (!partner) {

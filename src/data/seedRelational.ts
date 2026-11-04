@@ -54,6 +54,7 @@ export const teamMembers: TeamMemberIns[] = [
 export const partners: PartnerIns[] = [
   { id: nid(1), tenantId: TENANT, slug: "aj-contractors", displayName: "A&J Contractors", type: "contractor", stage: "active", contactName: "Ana Jimenez", location: "Gloucester County, NJ", skills: ["deep", "move-out"], summary: "Overflow move-out crew, reliable on short notice." },
   { id: nid(2), tenantId: TENANT, slug: "harbor-realty", displayName: "Harbor Realty", type: "lead-gen", stage: "active", contactName: "Dennis Walsh", location: "Mullica Hill, NJ", commissionBps: 1200, summary: "Highest-volume referral partner." },
+  { id: nid(3), tenantId: TENANT, slug: "sparkclean-crew", displayName: "SparkClean Crew", type: "contractor", stage: "active", contactName: "Luis Ortega", location: "Woolwich, NJ", skills: ["standard", "deep"], summary: "Detail-oriented crew we send on recurring overflow." },
 ];
 
 export const serviceOfferings: OfferingIns[] = [
@@ -140,6 +141,10 @@ export const jobs: JobIns[] = [
   { id: jid(7), tenantId: TENANT, customerId: cid(7), propertyId: pid(7), quoteId: qid(4), status: "completed", serviceType: "move-out", scheduledStart: daysFromNow(-7), completedAt: daysFromNow(-7), assigneeType: "partner", assignedPartnerId: nid(1), priceCents: 28000 },
   { id: jid(8), tenantId: TENANT, customerId: cid(7), propertyId: pid(7), status: "scheduled", serviceType: "standard", scheduledStart: daysFromNow(5), assigneeType: "team_member", assignedTeamMemberId: eid(1), priceCents: 13000 },
   { id: jid(26), tenantId: TENANT, customerId: cid(7), propertyId: pid(7), status: "completed", serviceType: "standard", scheduledStart: daysFromNow(-30), completedAt: daysFromNow(-30), assigneeType: "team_member", assignedTeamMemberId: eid(1), priceCents: 13000 },
+  // ── SparkClean Crew (contractor) — recurring overflow cleans, well reviewed ──
+  { id: jid(30), tenantId: TENANT, customerId: cid(3), propertyId: pid(3), status: "completed", serviceType: "standard", scheduledStart: daysFromNow(-26), completedAt: daysFromNow(-26), assigneeType: "partner", assignedPartnerId: nid(3), priceCents: 14000 },
+  { id: jid(31), tenantId: TENANT, customerId: cid(2), propertyId: pid(2), status: "completed", serviceType: "deep", scheduledStart: daysFromNow(-33), completedAt: daysFromNow(-33), assigneeType: "partner", assignedPartnerId: nid(3), priceCents: 21000 },
+  { id: jid(32), tenantId: TENANT, customerId: cid(7), propertyId: pid(7), status: "completed", serviceType: "standard", scheduledStart: daysFromNow(-16), completedAt: daysFromNow(-16), assigneeType: "partner", assignedPartnerId: nid(3), priceCents: 13000 },
 ];
 
 export const reviews: ReviewIns[] = [
@@ -147,6 +152,18 @@ export const reviews: ReviewIns[] = [
   { id: rid(2), tenantId: TENANT, jobId: jid(4), customerId: cid(3), rating: 5, reviewText: "Great job, on time.", reviewer: "customer", wouldRecommend: true, reviewedTeamMemberId: eid(2) },
   { id: rid(3), tenantId: TENANT, jobId: jid(7), customerId: cid(7), rating: 4, reviewText: "Move-out clean was thorough.", customerNote: "Ask about recurring", reviewer: "customer", wouldRecommend: true, reviewedPartnerId: nid(1) },
   { id: rid(4), tenantId: TENANT, jobId: jid(6), customerId: cid(6), rating: 3, customerNote: "Hasn't rebooked since; follow up.", reviewer: "staff" },
+  // ── Team member reviews (Maria: Gloria's jobs; James: Marcus's jobs) ──
+  { id: rid(5), tenantId: TENANT, jobId: jid(10), customerId: cid(2), rating: 5, reviewText: "Maria remembered I like the windows done on Fridays. Little touches like that matter.", reviewer: "customer", wouldRecommend: true, reviewedTeamMemberId: eid(1) },
+  { id: rid(6), tenantId: TENANT, jobId: jid(11), customerId: cid(2), rating: 4, reviewText: "Great as always — just missed the top of the fridge this time.", reviewer: "customer", wouldRecommend: true, reviewedTeamMemberId: eid(1) },
+  { id: rid(7), tenantId: TENANT, jobId: jid(12), customerId: cid(2), rating: 5, reviewText: "The kitchen has never been so spotless. Thank you!", reviewer: "customer", wouldRecommend: true, reviewedTeamMemberId: eid(1) },
+  { id: rid(8), tenantId: TENANT, jobId: jid(20), customerId: cid(3), rating: 5, reviewText: "James is efficient and respectful of our home. Wouldn't trade him.", reviewer: "customer", wouldRecommend: true, reviewedTeamMemberId: eid(2) },
+  { id: rid(9), tenantId: TENANT, jobId: jid(21), customerId: cid(3), rating: 4, reviewText: "Solid clean. Arrived a bit later than usual but let us know ahead of time.", reviewer: "customer", wouldRecommend: true, reviewedTeamMemberId: eid(2) },
+  { id: rid(10), tenantId: TENANT, jobId: jid(22), customerId: cid(3), rating: 3, reviewText: "Fine overall, though the bathrooms needed a second pass.", reviewer: "customer", wouldRecommend: false, reviewedTeamMemberId: eid(2) },
+  { id: rid(11), tenantId: TENANT, jobId: jid(26), customerId: cid(7), rating: 5, reviewText: "Maria did a wonderful job — will book her again.", reviewer: "customer", wouldRecommend: true, reviewedTeamMemberId: eid(1) },
+  // ── SparkClean Crew reviews (contractor) ──
+  { id: rid(12), tenantId: TENANT, jobId: jid(30), customerId: cid(3), rating: 5, reviewText: "The SparkClean crew was fantastic — thorough and friendly.", reviewer: "customer", wouldRecommend: true, reviewedPartnerId: nid(3) },
+  { id: rid(13), tenantId: TENANT, jobId: jid(31), customerId: cid(2), rating: 5, reviewText: "That deep clean was next level. Every corner.", reviewer: "customer", wouldRecommend: true, reviewedPartnerId: nid(3) },
+  { id: rid(14), tenantId: TENANT, jobId: jid(32), customerId: cid(7), rating: 4, reviewText: "Very good. Would use them again.", reviewer: "customer", wouldRecommend: true, reviewedPartnerId: nid(3) },
 ];
 
 // Logged touchpoints — a mix of types/methods that tell a story per customer
