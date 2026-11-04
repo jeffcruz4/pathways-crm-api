@@ -7,6 +7,7 @@ import type { InferSelectModel } from "drizzle-orm";
 import {
   assembleCustomer,
   assembleCustomerStats,
+  searchCorpus,
   partnerRelations,
   mapContact,
   mapProperty,
@@ -24,6 +25,7 @@ import type { Customer, CustomerListItem, CustomerCreate, CustomerUpdate } from 
 import type { Partner, PartnerListItem, PartnerCreate, PartnerUpdate } from "../domain/partner.js";
 import type { TeamMember, TeamMemberListItem, TeamMemberCreate } from "../domain/team-member.js";
 import type { CustomerStats } from "../domain/customer-stats.js";
+import type { SearchResults } from "../domain/search.js";
 import type { Pipeline, PipelineStage } from "../domain/deal.js";
 import type { ConvoListItem, ConversationDetail } from "../domain/conversation.js";
 import type { CalendarWeek } from "../domain/calendar.js";
@@ -665,6 +667,29 @@ export class PostgresRepository implements Repository {
       skills: r.skills,
       homeBase: r.homeBase,
     };
+  }
+
+  // ── Global keyword search (all object types) ──
+  async search(query: string): Promise<SearchResults> {
+    if (query.trim().length === 0) return { query: query.trim(), total: 0, groups: [] };
+    const [
+      customers, contacts, partners, teamMembers, offerings, properties, plans, quotes, jobs, appointments,
+    ] = await Promise.all([
+      this.db.select().from(schema.customers),
+      this.db.select().from(schema.customerContacts),
+      this.db.select().from(schema.partners),
+      this.db.select().from(schema.teamMembers),
+      this.db.select().from(schema.serviceOfferings),
+      this.db.select().from(schema.properties),
+      this.db.select().from(schema.plans),
+      this.db.select().from(schema.quotes),
+      this.db.select().from(schema.jobs),
+      this.db.select().from(schema.appointments),
+    ]);
+    return searchCorpus(
+      { customers, contacts, partners, teamMembers, offerings, properties, plans, quotes, jobs, appointments },
+      query,
+    );
   }
 
   // ── Pipeline = quotes grouped by status (design Q1) ──

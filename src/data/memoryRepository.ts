@@ -7,6 +7,7 @@ import * as rel from "./seedRelational.js";
 import {
   assembleCustomer,
   assembleCustomerStats,
+  searchCorpus,
   partnerRelations,
   mapContact,
   mapProperty,
@@ -22,6 +23,7 @@ import {
 } from "./assemble.js";
 import type { Customer, CustomerListItem, CustomerCreate, CustomerUpdate } from "../domain/customer.js";
 import type { CustomerStats } from "../domain/customer-stats.js";
+import type { SearchResults } from "../domain/search.js";
 import type { Partner, PartnerListItem, PartnerCreate, PartnerUpdate } from "../domain/partner.js";
 import type { TeamMember, TeamMemberListItem, TeamMemberCreate } from "../domain/team-member.js";
 import type {
@@ -807,6 +809,25 @@ export class MemoryRepository implements Repository {
       skills: row.skills,
       homeBase: row.homeBase,
     };
+  }
+
+  // ── Global keyword search (all object types) ──
+  async search(query: string): Promise<SearchResults> {
+    return searchCorpus(
+      {
+        customers: this.customers,
+        contacts: this.contacts,
+        partners: this.partners,
+        teamMembers: this.teamMembers,
+        offerings: this.offerings,
+        properties: this.properties,
+        plans: this.plans,
+        quotes: this.quotes,
+        jobs: this.jobs,
+        appointments: this.appointments,
+      },
+      query,
+    );
   }
 
   // ── Pipeline = quotes grouped into stages ──

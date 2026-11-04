@@ -12,6 +12,20 @@ Stood the API up from a read-only `/home` scaffold to a relational,
 multi-tenant CRM backend with create endpoints, a dedicated RDS instance, and a
 turnkey deploy + local-dev story.
 
+### #20 · global keyword search endpoint
+*(pending)*
+- `domain/search.ts`: `SearchResults` (grouped `SearchHit`s with a `type`
+  discriminator, title/subtitle, and an in-app `href`); `SearchEntityType`
+  spans all objects.
+- `assemble.ts`: pure `searchCorpus(corpus, query)` — case-insensitive substring
+  match across customers (name/tags/summary/contacts), partners, team members,
+  catalog, jobs, quotes, plans, properties, appointments. Work entities resolve
+  to their customer record via `href`; per-group cap of 8.
+- Repository (both backends): `search(query)` gathers the corpus and delegates
+  to the shared matcher.
+- Route: `GET /search?q=` (empty query → empty results, not an error).
+- Keyword-only; the contract is stable so semantic search can slot in later.
+
 ### #19 · partner record — real rollups, related entities, edit
 *(pending)*
 - `domain/partner.ts`: dropped the non-DB-backed `employment` block and the
