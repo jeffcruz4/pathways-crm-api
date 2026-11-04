@@ -11,6 +11,7 @@ import {
   JobCreate,
   ReviewCreate,
   AppointmentCreate,
+  InteractionCreate,
 } from "../domain/crm.js";
 
 export function customerRoutes(repo: Repository) {
@@ -125,6 +126,15 @@ export function customerRoutes(repo: Repository) {
       const input = parseBody(AppointmentCreate, req.body, reply);
       if (!input) return;
       const created = await repo.createAppointment(req.params.id, input);
+      return created ? reply.code(201).send(created) : notFound(reply);
+    });
+
+    // Log a customer interaction (type + method + note). The list comes back on
+    // the customer record itself (`interactions`, newest first).
+    app.post<{ Params: { id: string } }>("/customers/:id/interactions", async (req, reply) => {
+      const input = parseBody(InteractionCreate, req.body, reply);
+      if (!input) return;
+      const created = await repo.addInteraction(req.params.id, input);
       return created ? reply.code(201).send(created) : notFound(reply);
     });
   };

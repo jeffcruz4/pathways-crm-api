@@ -21,6 +21,7 @@ import type {
   Review,
   ServiceOffering,
   Appointment,
+  Interaction,
 } from "../domain/crm.js";
 import type { Partner, PartnerListItem } from "../domain/partner.js";
 
@@ -35,6 +36,7 @@ type PartnerRow = InferSelectModel<typeof schema.partners>;
 type OfferingRow = InferSelectModel<typeof schema.serviceOfferings>;
 type AppointmentRow = InferSelectModel<typeof schema.appointments>;
 type TeamMemberRow = InferSelectModel<typeof schema.teamMembers>;
+type InteractionRow = InferSelectModel<typeof schema.interactions>;
 
 const iso = (d: Date | null): string | null => (d ? d.toISOString() : null);
 
@@ -67,6 +69,17 @@ export function mapAppointment(r: AppointmentRow, assigneeName: string | null): 
     assigneeType: r.assigneeType,
     assigneeName,
     locationOverride: r.locationOverride,
+  };
+}
+
+export function mapInteraction(r: InteractionRow, handledBy: string | null): Interaction {
+  return {
+    id: r.id,
+    type: r.type,
+    method: r.method,
+    note: r.note,
+    occurredAt: r.occurredAt.toISOString(),
+    handledBy,
   };
 }
 
@@ -270,6 +283,7 @@ export type CustomerBundle = {
   plans: PlanRow[];
   quotes: QuoteRow[];
   jobs: JobRow[];
+  interactions: InteractionRow[];
   reviewsByJob: Map<string, ReviewRow>;
   workerNameById: Map<string, string>;
 };
@@ -330,6 +344,13 @@ export function assembleCustomer(b: CustomerBundle, now = new Date()): Customer 
     plans: b.plans.map(mapPlan),
     quotes: b.quotes.map(mapQuote),
     jobs,
+    interactions: [...b.interactions]
+      .filter((i) => !i.archivedAt)
+      .sort((a, z) => z.occurredAt.getTime() - a.occurredAt.getTime())
+      .map((i) => {
+        const wid = i.handledByTeamMemberId ?? i.handledByPartnerId ?? null;
+        return mapInteraction(i, wid ? (b.workerNameById.get(wid) ?? null) : null);
+      }),
   };
 }
 

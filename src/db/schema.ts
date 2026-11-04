@@ -74,6 +74,13 @@ export const appointmentStatus = pgEnum("appointment_status", [
   "no-show",
 ]);
 export const reviewSource = pgEnum("review_source", ["customer", "staff"]);
+export const interactionType = pgEnum("interaction_type", [
+  "unplanned",
+  "formal-meeting",
+  "complaint",
+  "compliment",
+]);
+export const interactionMethod = pgEnum("interaction_method", ["call", "text", "email", "dm"]);
 export const teamMemberStatus = pgEnum("team_member_status", ["active", "inactive", "on-leave"]);
 export const employmentType = pgEnum("employment_type", ["full-time", "part-time"]);
 export const partnerType = pgEnum("partner_type", ["lead-gen", "contractor", "both"]);
@@ -462,5 +469,37 @@ export const jobReviews = pgTable(
       "job_reviews_rating_ck",
       sql`${t.rating} IS NULL OR (${t.rating} >= 1 AND ${t.rating} <= 5)`,
     ),
+  }),
+);
+
+// ───────────── Interactions (logged touchpoints that signal service needs) ─────────────
+// A lightweight, chronological log of notable customer touchpoints. `type`
+// captures the nature (unplanned / formal meeting / complaint / compliment),
+// `method` the channel (call / text / email / DM). Used to spot at-risk
+// customers and inform future service/marketing. Optionally tied to the team
+// member or partner who handled it.
+export const interactions = pgTable(
+  "interactions",
+  {
+    id: pk(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    customerId: uuid("customer_id")
+      .notNull()
+      .references(() => customers.id),
+    type: interactionType("type").notNull(),
+    method: interactionMethod("method").notNull(),
+    note: text("note"),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+    handledByTeamMemberId: uuid("handled_by_team_member_id").references(() => teamMembers.id),
+    handledByPartnerId: uuid("handled_by_partner_id").references(() => partners.id),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    archivedAt: archivedAt(),
+  },
+  (t) => ({
+    byCustomer: index("interactions_customer_idx").on(t.customerId),
+    byOccurred: index("interactions_occurred_idx").on(t.tenantId, t.occurredAt),
   }),
 );

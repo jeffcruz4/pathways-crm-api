@@ -14,6 +14,7 @@ async function main() {
   console.log("Seeding database …");
 
   // Clear child → parent (respect FKs).
+  await db.delete(schema.interactions);
   await db.delete(schema.jobReviews);
   await db.delete(schema.appointments);
   await db.delete(schema.jobs);
@@ -40,11 +41,13 @@ async function main() {
   await db.insert(schema.jobs).values(rel.jobs);
   await db.insert(schema.jobReviews).values(rel.reviews);
   await db.insert(schema.appointments).values(rel.appointments);
+  await db.insert(schema.interactions).values(rel.interactions);
 
   console.log(
     `Seeded: ${rel.customers.length} customers, ${rel.contacts.length} contacts, ` +
       `${rel.properties.length} properties, ${rel.plans.length} plans, ${rel.quotes.length} quotes, ` +
       `${rel.jobs.length} jobs, ${rel.reviews.length} reviews, ${rel.appointments.length} appointments, ` +
+      `${rel.interactions.length} interactions, ` +
       `${rel.teamMembers.length} team members, ${rel.partners.length} partners.`,
   );
   await sql.end();
