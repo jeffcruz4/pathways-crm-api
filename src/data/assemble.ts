@@ -11,6 +11,7 @@ import * as schema from "../db/schema.js";
 import { formatMoney } from "../domain/money.js";
 import type { Customer } from "../domain/customer.js";
 import type { CustomerStats } from "../domain/customer-stats.js";
+import type { SearchGroup, SearchHit, SearchResults } from "../domain/search.js";
 import type {
   Contact,
   Property,
@@ -33,6 +34,7 @@ type ReviewRow = InferSelectModel<typeof schema.jobReviews>;
 type PartnerRow = InferSelectModel<typeof schema.partners>;
 type OfferingRow = InferSelectModel<typeof schema.serviceOfferings>;
 type AppointmentRow = InferSelectModel<typeof schema.appointments>;
+type TeamMemberRow = InferSelectModel<typeof schema.teamMembers>;
 
 const iso = (d: Date | null): string | null => (d ? d.toISOString() : null);
 
@@ -504,4 +506,195 @@ export function partnerRelations(
     relatedCustomers,
     relatedJobs,
   };
+}
+
+// ── Global keyword search (all object types) ──
+
+/** Everything the search needs, in raw rows. Both backends supply this. */
+export type SearchCorpus = {
+  customers: CustomerRow[];
+  contacts: ContactRow[];
+  partners: PartnerRow[];
+  teamMembers: TeamMemberRow[];
+  offerings: OfferingRow[];
+  properties: PropertyRow[];
+  plans: PlanRow[];
+  quotes: QuoteRow[];
+  jobs: JobRow[];
+  appointments: AppointmentRow[];
+};
+
+/** Case-insensitive substring test over a set of candidate fields. */
+function matchField(q: string, fields: (string | null | undefined)[]): string | null {
+  for (const f of fields) {
+    if (f && f.toLowerCase().includes(q)) return f;
+  }
+  return null;
+}
+
+const PER_GROUP_LIMIT = 8;
+const GROUP_ORDER: { type: SearchGroup["type"]; label: string }[] = [
+  { type: "customer", label: "Customers" },
+  { type: "partner", label: "Partners" },
+  { type: "team-member", label: "Team members" },
+  { type: "catalog", label: "Catalog" },
+  { type: "job", label: "Jobs" },
+  { type: "quote", label: "Quotes" },
+  { type: "plan", label: "Service plans" },
+  { type: "property", label: "Properties" },
+  { type: "appointment", label: "Appointments" },
+];
+
+const titleCase = (s: string) => s.replace(/(^|[\s-])\w/g, (m) => m.toUpperCase());
+
+/**
+ * Keyword search across every object type. Pure: both repositories pass their
+ * rows. Work entities (job/quote/plan/property/appointment) resolve to the
+ * customer record they belong to via `href`.
+ */
+export function searchCorpus(corpus: SearchCorpus, rawQuery: string): SearchResults {
+  const q = rawQuery.trim().toLowerCase();
+  const query = rawQuery.trim();
+  if (q.length === 0) return { query, total: 0, groups: [] };
+
+  const liveCustomers = corpus.customers.filter((c) => !c.archivedAt);
+  const customerById = new Map(corpus.customers.map((c) => [c.id, c]));
+  const customerName = (id: string) => customerById.get(id)?.displayName ?? "Unknown customer";
+  const hits: Record<SearchGroup["type"], SearchHit[]> = {
+    customer: [], partner: [], "team-member": [], catalog: [],
+    job: [], quote: [], plan: [], property: [], appointment: [],
+  };
+
+  // Customers — name, tags, summary; also match on a contact value.
+  const contactsByCustomer = new Map<string, ContactRow[]>();
+  for (const k of corpus.contacts) {
+    const arr = contactsByCustomer.get(k.customerId) ?? [];
+    arr.push(k);
+    contactsByCustomer.set(k.customerId, arr);
+  }
+  for (const c of liveCustomers) {
+    const m =
+      matchField(q, [c.displayName, c.summary, ...c.tags]) ??
+      matchField(q, (contactsByCustomer.get(c.id) ?? []).map((k) => k.value));
+    if (m) {
+      hits.customer.push({
+        type: "customer", id: c.id, title: c.displayName,
+        subtitle: [titleCase(c.status), ...c.tags.slice(0, 2)].join(" · "),
+        href: `/customers/${c.id}`, matchedOn: m,
+      });
+    }
+  }
+
+  // Partners — name, contact, location, skills, summary.
+  for (const p of corpus.partners.filter((x) => !x.archivedAt)) {
+    const m = matchField(q, [p.displayName, p.contactName, p.location, p.summary, ...p.skills]);
+    if (m) {
+      hits.partner.push({
+        type: "partner", id: p.id, title: p.displayName,
+        subtitle: [titleCase(p.type), p.location].filter(Boolean).join(" · "),
+        href: `/partners/${p.id}`, matchedOn: m,
+      });
+    }
+  }
+
+  // Team members — name, email, home base, skills.
+  for (const t of corpus.teamMembers.filter((x) => !x.archivedAt)) {
+    const m = matchField(q, [t.displayName, t.email, t.homeBase, ...t.skills]);
+    if (m) {
+      hits["team-member"].push({
+        type: "team-member", id: t.id, title: t.displayName,
+        subtitle: [titleCase(t.employmentType), t.homeBase].filter(Boolean).join(" · "),
+        href: `/team`, matchedOn: m,
+      });
+    }
+  }
+
+  // Catalog (service offerings) — name, description, service type.
+  for (const o of corpus.offerings.filter((x) => !x.archivedAt)) {
+    const m = matchField(q, [o.name, o.description, o.serviceType, o.frequency]);
+    if (m) {
+      hits.catalog.push({
+        type: "catalog", id: o.id, title: o.name,
+        subtitle: [titleCase(o.serviceType), o.frequency, o.defaultPriceCents != null ? formatMoney(o.defaultPriceCents, o.currency).display : null]
+          .filter(Boolean).join(" · "),
+        href: `/catalog`, matchedOn: m,
+      });
+    }
+  }
+
+  // Jobs — service type, status, notes; resolve to the customer record.
+  for (const j of corpus.jobs.filter((x) => !x.archivedAt)) {
+    const name = customerName(j.customerId);
+    const m = matchField(q, [j.serviceType, j.status, j.notes, name]);
+    if (m) {
+      hits.job.push({
+        type: "job", id: j.customerId, title: `${titleCase(j.serviceType)} · ${name}`,
+        subtitle: [titleCase(j.status), j.priceCents != null ? formatMoney(j.priceCents, j.currency).display : null]
+          .filter(Boolean).join(" · "),
+        href: `/customers/${j.customerId}`, matchedOn: m,
+      });
+    }
+  }
+
+  // Quotes — detail, service type, status; resolve to the customer record.
+  for (const qu of corpus.quotes.filter((x) => !x.archivedAt)) {
+    const name = customerName(qu.customerId);
+    const m = matchField(q, [qu.detail, qu.serviceType, qu.status, name]);
+    if (m) {
+      hits.quote.push({
+        type: "quote", id: qu.customerId, title: qu.detail ?? `${titleCase(qu.serviceType)} quote`,
+        subtitle: [name, titleCase(qu.status), formatMoney(qu.amountCents, qu.currency).display].join(" · "),
+        href: `/customers/${qu.customerId}`, matchedOn: m,
+      });
+    }
+  }
+
+  // Plans — name, service type; resolve to the customer record.
+  for (const pl of corpus.plans.filter((x) => !x.archivedAt)) {
+    const name = customerName(pl.customerId);
+    const m = matchField(q, [pl.name, pl.description, pl.serviceType, pl.frequency, name]);
+    if (m) {
+      hits.plan.push({
+        type: "plan", id: pl.customerId, title: pl.name,
+        subtitle: [name, titleCase(pl.frequency), formatMoney(pl.priceCents, pl.currency).display].join(" · "),
+        href: `/customers/${pl.customerId}`, matchedOn: m,
+      });
+    }
+  }
+
+  // Properties — address parts; resolve to the customer record.
+  for (const pr of corpus.properties.filter((x) => !x.archivedAt)) {
+    const name = customerName(pr.customerId);
+    const m = matchField(q, [pr.addressLine1, pr.city, pr.region, pr.postalCode, pr.label, name]);
+    if (m) {
+      hits.property.push({
+        type: "property", id: pr.customerId, title: addressLine(pr),
+        subtitle: [name, pr.label].filter(Boolean).join(" · ") || name,
+        href: `/customers/${pr.customerId}`, matchedOn: m,
+      });
+    }
+  }
+
+  // Appointments — title, detail, kind; resolve to the customer record if any.
+  for (const a of corpus.appointments.filter((x) => !x.archivedAt)) {
+    const name = a.customerId ? customerName(a.customerId) : null;
+    const m = matchField(q, [a.title, a.detail, a.kind, name]);
+    if (m) {
+      hits.appointment.push({
+        type: "appointment", id: a.customerId ?? a.id, title: a.title,
+        subtitle: [titleCase(a.kind.replace("-", " ")), name].filter(Boolean).join(" · "),
+        href: a.customerId ? `/customers/${a.customerId}` : `/calendar`, matchedOn: m,
+      });
+    }
+  }
+
+  const groups: SearchGroup[] = [];
+  let total = 0;
+  for (const g of GROUP_ORDER) {
+    const list = hits[g.type];
+    if (list.length === 0) continue;
+    total += list.length;
+    groups.push({ type: g.type, label: g.label, hits: list.slice(0, PER_GROUP_LIMIT) });
+  }
+  return { query, total, groups };
 }
