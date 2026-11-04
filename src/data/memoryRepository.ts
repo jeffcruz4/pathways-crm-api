@@ -9,6 +9,9 @@ import {
   assembleCustomerStats,
   assembleTeamStats,
   assemblePartnerHighlights,
+  assemblePipelineStats,
+  PIPELINE_STAGES,
+  STATUS_TO_STAGE,
   teamMemberRollups,
   searchCorpus,
   partnerRelations,
@@ -46,6 +49,7 @@ import type {
   PlanCreate,
   Quote,
   QuoteCreate,
+  QuoteUpdate,
   Job,
   JobCreate,
   Review,
@@ -224,7 +228,7 @@ export class MemoryRepository implements Repository {
       needsYou: q.needsYou ?? false,
       detail: q.detail ?? null,
       coriNotes: q.coriNotes ?? null,
-      createdAt: nowTs(),
+      createdAt: q.createdAt instanceof Date ? q.createdAt : nowTs(),
       updatedAt: nowTs(),
       archivedAt: null,
     };
@@ -893,25 +897,33 @@ export class MemoryRepository implements Repository {
     );
   }
 
+  // ── Quotes: pipeline card edits ──
+  async updateQuote(id: string, input: QuoteUpdate): Promise<Quote | undefined> {
+    const row = this.quotes.find((q) => q.id === id);
+    if (!row) return undefined;
+    if (input.status !== undefined) {
+      row.status = input.status;
+      if (input.status === "accepted" || input.status === "declined") row.decidedAt = nowTs();
+    }
+    if (input.detail !== undefined) row.detail = input.detail;
+    if (input.amountCents !== undefined) row.amountCents = input.amountCents;
+    if (input.needsYou !== undefined) row.needsYou = input.needsYou;
+    row.updatedAt = nowTs();
+    return mapQuote(row);
+  }
+
   // ── Pipeline = quotes grouped into stages ──
   async getPipeline() {
-    const statusToStage: Record<string, string> = {
-      draft: "new",
-      sent: "quote-sent",
-      "follow-up": "follow-up",
-      accepted: "booked",
-      declined: "booked",
-      expired: "new",
-    };
-    const stages = seed.pipeline.stages.map((meta) => ({
-      id: meta.id,
+    const stats = assemblePipelineStats(this.quotes);
+    const stages = PIPELINE_STAGES.map((meta) => ({
+      id: meta.id as "new" | "needs-quote" | "quote-sent" | "follow-up" | "booked",
       label: meta.label,
       dot: meta.dot,
       deals: this.quotes
-        .filter((q) => (statusToStage[q.status] ?? "new") === meta.id)
+        .filter((q) => !q.archivedAt && (STATUS_TO_STAGE[q.status] ?? "new") === meta.id)
         .map((q) => ({
           id: q.id,
-          stageId: meta.id,
+          stageId: meta.id as "new" | "needs-quote" | "quote-sent" | "follow-up" | "booked",
           name: q.detail ?? "Quote",
           price: q.amountCents != null ? Math.round(q.amountCents / 100) : undefined,
           priceUnit: q.priceUnit === "per-visit" ? ("visit" as const) : ("flat" as const),
@@ -921,6 +933,17 @@ export class MemoryRepository implements Repository {
           needsYou: q.needsYou,
         })),
     }));
-    return { summary: seed.pipeline.summary, stages };
+    return {
+      summary: {
+        openCount: stats.openCount,
+        openValue: stats.openValue.display,
+        movedByCori: seed.pipeline.summary.movedByCori,
+      },
+      stages,
+    };
+  }
+
+  async getPipelineStats() {
+    return assemblePipelineStats(this.quotes);
   }
 }

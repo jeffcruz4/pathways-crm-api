@@ -12,6 +12,22 @@ Stood the API up from a read-only `/home` scaffold to a relational,
 multi-tenant CRM backend with create endpoints, a dedicated RDS instance, and a
 turnkey deploy + local-dev story.
 
+### #24 · pipeline: quote status update + pipeline stats
+*(pending)*
+- `QuoteUpdate` + `PATCH /quotes/:id` — drag-and-drop sets a quote's status
+  (stamps `decidedAt` on accepted/declined); also supports inline detail /
+  amount / needs-you edits. 404 on unknown id, 400 on a bad status.
+- `PipelineStats` + `GET /pipeline/stats`: sum of open-quote value, open count,
+  per-stage counts, and a 90-day daily new-opportunity trend (the UI slices it
+  to 30/60/90).
+- Centralized the stage⇄status mapping (`PIPELINE_STAGES`, `STATUS_TO_STAGE`,
+  `assemblePipelineStats`) in `assemble.ts`; both backends + `getPipeline`
+  (whose summary open value/count is now derived) use it.
+- Fix: memory `fillQuote` now honors the seed `createdAt` (matching Postgres) so
+  the new-opportunity trend is consistent across backends.
+- Seed: quotes now carry spread `createdAt` and there are 11 of them across all
+  statuses, so the board + charts have real shape.
+
 ### #22 · team spotlight + partner highlights stats
 *(pending)*
 - `GET /team-members/stats`: filter-tab counts (total / active / on-leave /
