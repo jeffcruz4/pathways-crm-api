@@ -12,6 +12,23 @@ Stood the API up from a read-only `/home` scaffold to a relational,
 multi-tenant CRM backend with create endpoints, a dedicated RDS instance, and a
 turnkey deploy + local-dev story.
 
+### #19 · partner record — real rollups, related entities, edit
+*(pending)*
+- `domain/partner.ts`: dropped the non-DB-backed `employment` block and the
+  empty `activity` array; exposed `email`/`phone`/`skills`/`commissionBps`/
+  `notes`; added derived `relatedCustomers` (referred ∪ served, with per-customer
+  jobs-covered + relationship) and `relatedJobs`; added `PartnerUpdate`.
+- `assemble.ts`: `partnerRelations(referred, covered, customerById)` — one pure
+  helper computing rollups (leadsGenerated = referred count, jobsCovered =
+  covered count, value = Σ completed covered-job prices) + the related lists.
+  `partnerListItem`/`partnerDetail` now take the computed values.
+- Repository (both backends): `listPartners`/`getPartner`/`createPartner` derive
+  rollups; added `updatePartner`.
+- Routes: `PATCH /partners/:id` (Zod-validated, 404 when missing).
+- Fix: guard partner/customer id lookups with a UUID check (`isUuid`) so a
+  non-UUID path param returns 404 instead of a Postgres 500 ("invalid input
+  syntax for type uuid").
+
 ### #18 · edit customer + edit property (PATCH)
 *(pending)*
 - `domain/customer.ts`: `CustomerUpdate` (partial — identity + status/stage,

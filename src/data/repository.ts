@@ -1,5 +1,5 @@
 import type { Customer, CustomerListItem, CustomerCreate, CustomerUpdate } from "../domain/customer.js";
-import type { Partner, PartnerListItem, PartnerCreate } from "../domain/partner.js";
+import type { Partner, PartnerListItem, PartnerCreate, PartnerUpdate } from "../domain/partner.js";
 import type { TeamMember, TeamMemberListItem, TeamMemberCreate } from "../domain/team-member.js";
 import type { CustomerStats } from "../domain/customer-stats.js";
 import type { Pipeline } from "../domain/deal.js";
@@ -70,6 +70,7 @@ export interface Repository {
   listPartners(): Promise<PartnerListItem[]>;
   getPartner(id: string): Promise<Partner | undefined>;
   createPartner(input: PartnerCreate): Promise<Partner>;
+  updatePartner(id: string, input: PartnerUpdate): Promise<Partner | undefined>;
 
   // Team members (full-time staff)
   listTeamMembers(): Promise<TeamMemberListItem[]>;

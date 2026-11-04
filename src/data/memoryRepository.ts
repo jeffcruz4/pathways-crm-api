@@ -7,6 +7,7 @@ import * as rel from "./seedRelational.js";
 import {
   assembleCustomer,
   assembleCustomerStats,
+  partnerRelations,
   mapContact,
   mapProperty,
   mapPlan,
@@ -21,7 +22,7 @@ import {
 } from "./assemble.js";
 import type { Customer, CustomerListItem, CustomerCreate, CustomerUpdate } from "../domain/customer.js";
 import type { CustomerStats } from "../domain/customer-stats.js";
-import type { Partner, PartnerListItem, PartnerCreate } from "../domain/partner.js";
+import type { Partner, PartnerListItem, PartnerCreate, PartnerUpdate } from "../domain/partner.js";
 import type { TeamMember, TeamMemberListItem, TeamMemberCreate } from "../domain/team-member.js";
 import type {
   Contact,
@@ -694,14 +695,35 @@ export class MemoryRepository implements Repository {
     return mapServiceOffering(row);
   }
 
-  // ── Partners ──
+  // ── Partners (rollups + related entities derived) ──
+  private customerById(): Map<string, CustomerRow> {
+    return new Map(this.customers.map((c) => [c.id, c]));
+  }
+
   async listPartners(): Promise<PartnerListItem[]> {
-    return this.partners.map(partnerListItem);
+    const byId = this.customerById();
+    return this.partners.map((p) => {
+      const referred = this.customers.filter((c) => c.referredByPartnerId === p.id);
+      const covered = this.jobs.filter((j) => j.assignedPartnerId === p.id);
+      const { rollups } = partnerRelations(referred, covered, byId);
+      return partnerListItem(p, rollups);
+    });
+  }
+
+  private assemblePartner(p: PartnerRow): Partner {
+    const referred = this.customers.filter((c) => c.referredByPartnerId === p.id);
+    const covered = this.jobs.filter((j) => j.assignedPartnerId === p.id);
+    const { rollups, relatedCustomers, relatedJobs } = partnerRelations(
+      referred,
+      covered,
+      this.customerById(),
+    );
+    return partnerDetail(p, rollups, relatedCustomers, relatedJobs);
   }
 
   async getPartner(id: string) {
     const p = this.partners.find((x) => x.id === id);
-    return p ? partnerDetail(p) : undefined;
+    return p ? this.assemblePartner(p) : undefined;
   }
 
   async createPartner(input: PartnerCreate): Promise<Partner> {
@@ -722,7 +744,27 @@ export class MemoryRepository implements Repository {
     });
     this.partners.push(row);
     this.workerNames.set(row.id, row.displayName);
-    return partnerDetail(row);
+    return this.assemblePartner(row);
+  }
+
+  async updatePartner(id: string, input: PartnerUpdate): Promise<Partner | undefined> {
+    const row = this.partners.find((x) => x.id === id);
+    if (!row) return undefined;
+    if (input.name !== undefined) row.displayName = input.name;
+    if (input.type !== undefined) row.type = input.type;
+    if (input.stage !== undefined) row.stage = input.stage;
+    if (input.contactName !== undefined) row.contactName = input.contactName;
+    if (input.email !== undefined) row.email = input.email;
+    if (input.phone !== undefined) row.phone = input.phone;
+    if (input.location !== undefined) row.location = input.location;
+    if (input.since !== undefined) row.since = input.since;
+    if (input.skills !== undefined) row.skills = input.skills;
+    if (input.commissionBps !== undefined) row.commissionBps = input.commissionBps;
+    if (input.summary !== undefined) row.summary = input.summary;
+    if (input.notes !== undefined) row.notes = input.notes;
+    row.updatedAt = nowTs();
+    this.workerNames.set(row.id, row.displayName);
+    return this.assemblePartner(row);
   }
 
   // ── Team members ──
