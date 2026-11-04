@@ -7,6 +7,9 @@ import type { InferSelectModel } from "drizzle-orm";
 import {
   assembleCustomer,
   assembleCustomerStats,
+  assembleTeamStats,
+  assemblePartnerHighlights,
+  teamMemberRollups,
   searchCorpus,
   partnerRelations,
   mapContact,
@@ -23,8 +26,14 @@ import {
   type CustomerBundle,
 } from "./assemble.js";
 import type { Customer, CustomerListItem, CustomerCreate, CustomerUpdate } from "../domain/customer.js";
-import type { Partner, PartnerListItem, PartnerCreate, PartnerUpdate } from "../domain/partner.js";
-import type { TeamMember, TeamMemberListItem, TeamMemberCreate } from "../domain/team-member.js";
+import type {
+  Partner,
+  PartnerListItem,
+  PartnerCreate,
+  PartnerUpdate,
+  PartnerHighlights,
+} from "../domain/partner.js";
+import type { TeamMember, TeamMemberListItem, TeamMemberCreate, TeamStats } from "../domain/team-member.js";
 import type { CustomerStats } from "../domain/customer-stats.js";
 import type { SearchResults } from "../domain/search.js";
 import type { Pipeline, PipelineStage } from "../domain/deal.js";
@@ -659,7 +668,11 @@ export class PostgresRepository implements Repository {
 
   // ── Team members (full-time staff) ──
   async listTeamMembers(): Promise<TeamMemberListItem[]> {
-    const rows = await this.db.select().from(schema.teamMembers);
+    const [rows, jobs, reviews] = await Promise.all([
+      this.db.select().from(schema.teamMembers),
+      this.db.select().from(schema.jobs),
+      this.db.select().from(schema.jobReviews),
+    ]);
     return rows.map((r) => ({
       id: r.id,
       name: r.displayName,
@@ -667,7 +680,28 @@ export class PostgresRepository implements Repository {
       employmentType: r.employmentType,
       skills: r.skills,
       homeBase: r.homeBase,
+      ...teamMemberRollups(r.id, jobs, reviews),
     }));
+  }
+
+  async getTeamStats(): Promise<TeamStats> {
+    const [teamMembers, jobs, reviews, customers] = await Promise.all([
+      this.db.select().from(schema.teamMembers),
+      this.db.select().from(schema.jobs),
+      this.db.select().from(schema.jobReviews),
+      this.db.select().from(schema.customers),
+    ]);
+    return assembleTeamStats(teamMembers, jobs, reviews, customers);
+  }
+
+  async getPartnerHighlights(): Promise<PartnerHighlights> {
+    const [partners, customers, jobs, reviews] = await Promise.all([
+      this.db.select().from(schema.partners),
+      this.db.select().from(schema.customers),
+      this.db.select().from(schema.jobs),
+      this.db.select().from(schema.jobReviews),
+    ]);
+    return assemblePartnerHighlights(partners, customers, jobs, reviews);
   }
 
   async createTeamMember(input: TeamMemberCreate): Promise<TeamMember> {

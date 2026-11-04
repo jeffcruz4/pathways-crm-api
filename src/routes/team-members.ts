@@ -10,6 +10,9 @@ export function teamMemberRoutes(repo: Repository) {
       return { items };
     });
 
+    // Filter-tab counts + the review spotlight for the My Team screen.
+    app.get("/team-members/stats", async () => repo.getTeamStats());
+
     app.post("/team-members", async (req, reply) => {
       const input = parseBody(TeamMemberCreate, req.body, reply);
       if (!input) return;

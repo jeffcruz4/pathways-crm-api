@@ -12,6 +12,24 @@ Stood the API up from a read-only `/home` scaffold to a relational,
 multi-tenant CRM backend with create endpoints, a dedicated RDS instance, and a
 turnkey deploy + local-dev story.
 
+### #22 · team spotlight + partner highlights stats
+*(pending)*
+- `GET /team-members/stats`: filter-tab counts (total / active / on-leave /
+  inactive) + a **spotlight** of the most recent reviews attributed to team
+  members (review → job → assigned team member, newest first).
+- `GET /team-members` items gain derived rollups: `jobsCompleted`,
+  `reviewCount`, `avgRating` (1 decimal) for the profile cards / table.
+- `GET /partners/stats`: highlights — **top producer** (revenue brought in via
+  covered jobs + referred customers, each job counted once per partner),
+  **top rated** (best average review rating among contractors), and **total
+  revenue** through partner relationships (de-duplicated by job across
+  partners), plus how many partners are producing.
+- Pure helpers in `assemble.ts` (`teamMemberRollups`, `assembleTeamStats`,
+  `assemblePartnerHighlights`) shared by both backends. Static `/stats` paths
+  are matched ahead of `/partners/:id`.
+- Seed: a second contractor (SparkClean Crew) with jobs, plus 10 more reviews
+  with varied ratings/text so the spotlight and "highest rated" are real.
+
 ### #21 · customer interactions log (table + endpoint)
 *(pending)*
 - New `interactions` table (migration `0001_volatile_veda`): `type`
