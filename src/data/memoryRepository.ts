@@ -7,6 +7,9 @@ import * as rel from "./seedRelational.js";
 import {
   assembleCustomer,
   assembleCustomerStats,
+  assembleTeamStats,
+  assemblePartnerHighlights,
+  teamMemberRollups,
   searchCorpus,
   partnerRelations,
   mapContact,
@@ -25,8 +28,14 @@ import {
 import type { Customer, CustomerListItem, CustomerCreate, CustomerUpdate } from "../domain/customer.js";
 import type { CustomerStats } from "../domain/customer-stats.js";
 import type { SearchResults } from "../domain/search.js";
-import type { Partner, PartnerListItem, PartnerCreate, PartnerUpdate } from "../domain/partner.js";
-import type { TeamMember, TeamMemberListItem, TeamMemberCreate } from "../domain/team-member.js";
+import type {
+  Partner,
+  PartnerListItem,
+  PartnerCreate,
+  PartnerUpdate,
+  PartnerHighlights,
+} from "../domain/partner.js";
+import type { TeamMember, TeamMemberListItem, TeamMemberCreate, TeamStats } from "../domain/team-member.js";
 import type {
   Contact,
   ContactCreate,
@@ -823,7 +832,16 @@ export class MemoryRepository implements Repository {
       employmentType: r.employmentType,
       skills: r.skills,
       homeBase: r.homeBase,
+      ...teamMemberRollups(r.id, this.jobs, this.reviews),
     }));
+  }
+
+  async getTeamStats(): Promise<TeamStats> {
+    return assembleTeamStats(this.teamMembers, this.jobs, this.reviews, this.customers);
+  }
+
+  async getPartnerHighlights(): Promise<PartnerHighlights> {
+    return assemblePartnerHighlights(this.partners, this.customers, this.jobs, this.reviews);
   }
 
   async createTeamMember(input: TeamMemberCreate): Promise<TeamMember> {

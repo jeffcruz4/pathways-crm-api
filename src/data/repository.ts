@@ -1,6 +1,12 @@
 import type { Customer, CustomerListItem, CustomerCreate, CustomerUpdate } from "../domain/customer.js";
-import type { Partner, PartnerListItem, PartnerCreate, PartnerUpdate } from "../domain/partner.js";
-import type { TeamMember, TeamMemberListItem, TeamMemberCreate } from "../domain/team-member.js";
+import type {
+  Partner,
+  PartnerListItem,
+  PartnerCreate,
+  PartnerUpdate,
+  PartnerHighlights,
+} from "../domain/partner.js";
+import type { TeamMember, TeamMemberListItem, TeamMemberCreate, TeamStats } from "../domain/team-member.js";
 import type { CustomerStats } from "../domain/customer-stats.js";
 import type { SearchResults } from "../domain/search.js";
 import type { Pipeline } from "../domain/deal.js";
@@ -75,10 +81,12 @@ export interface Repository {
   getPartner(id: string): Promise<Partner | undefined>;
   createPartner(input: PartnerCreate): Promise<Partner>;
   updatePartner(id: string, input: PartnerUpdate): Promise<Partner | undefined>;
+  getPartnerHighlights(): Promise<PartnerHighlights>;
 
   // Team members (full-time staff)
   listTeamMembers(): Promise<TeamMemberListItem[]>;
   createTeamMember(input: TeamMemberCreate): Promise<TeamMember>;
+  getTeamStats(): Promise<TeamStats>;
 
   // Global keyword search (all object types)
   search(query: string): Promise<SearchResults>;

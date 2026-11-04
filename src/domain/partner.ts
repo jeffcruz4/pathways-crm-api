@@ -100,7 +100,32 @@ export const PartnerUpdate = z.object({
   notes: z.string().nullable().optional(),
 });
 
+/** A partner called out in the highlights, with the metric that earned the spot. */
+export const PartnerSpotlight = z.object({
+  id: z.string(),
+  name: z.string(),
+  type: PartnerType,
+  /** Headline number, e.g. "$1,100" or "4.5". */
+  metric: z.string(),
+  /** What the metric means, e.g. "Revenue to date" or "Avg rating · 3 reviews". */
+  metricLabel: z.string(),
+});
+
+/** Highlights shown above the partner list. Any spotlight can be null (no data yet). */
+export const PartnerHighlights = z.object({
+  /** Partner who has produced the most value (jobs covered + referred-customer revenue). */
+  topProducer: PartnerSpotlight.nullable(),
+  /** Highest average review rating among contractors (partners who cover jobs). */
+  topRated: PartnerSpotlight.nullable(),
+  /** Total revenue (whole dollars) generated through partner relationships. */
+  totalRevenue: Money,
+  /** Number of partners that have produced any revenue. */
+  producingPartners: z.number().int(),
+});
+
 export type Partner = z.infer<typeof Partner>;
+export type PartnerSpotlight = z.infer<typeof PartnerSpotlight>;
+export type PartnerHighlights = z.infer<typeof PartnerHighlights>;
 export type PartnerCreate = z.infer<typeof PartnerCreate>;
 export type PartnerUpdate = z.infer<typeof PartnerUpdate>;
 export type PartnerListItem = z.infer<typeof PartnerListItem>;
