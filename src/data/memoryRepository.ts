@@ -17,6 +17,7 @@ import {
   mapJob,
   mapServiceOffering,
   mapAppointment,
+  mapInteraction,
   partnerListItem,
   partnerDetail,
   type CustomerBundle,
@@ -45,6 +46,8 @@ import type {
   ServiceOfferingUpdate,
   Appointment,
   AppointmentCreate,
+  Interaction,
+  InteractionCreate,
 } from "../domain/crm.js";
 
 type CustomerRow = InferSelectModel<typeof schema.customers>;
@@ -58,6 +61,7 @@ type TeamMemberRow = InferSelectModel<typeof schema.teamMembers>;
 type PartnerRow = InferSelectModel<typeof schema.partners>;
 type OfferingRow = InferSelectModel<typeof schema.serviceOfferings>;
 type AppointmentRow = InferSelectModel<typeof schema.appointments>;
+type InteractionRow = InferSelectModel<typeof schema.interactions>;
 
 const nowTs = () => new Date();
 
@@ -79,6 +83,7 @@ export class MemoryRepository implements Repository {
   private partners: PartnerRow[] = [];
   private offerings: OfferingRow[] = [];
   private appointments: AppointmentRow[] = [];
+  private interactions: InteractionRow[] = [];
   private workerNames = new Map<string, string>();
   private readonly tenantId = rel.tenant.id!;
 
@@ -95,6 +100,7 @@ export class MemoryRepository implements Repository {
     this.jobs = rel.jobs.map((j) => this.fillJob(j));
     this.reviews = rel.reviews.map((r) => this.fillReview(r));
     this.appointments = rel.appointments.map((a) => this.fillAppointment(a));
+    this.interactions = rel.interactions.map((i) => this.fillInteraction(i));
     for (const e of rel.teamMembers) this.workerNames.set(e.id!, e.displayName);
     for (const p of rel.partners) this.workerNames.set(p.id!, p.displayName);
   }
@@ -340,6 +346,23 @@ export class MemoryRepository implements Repository {
     };
   }
 
+  private fillInteraction(i: (typeof rel.interactions)[number]): InteractionRow {
+    return {
+      id: i.id ?? randomUUID(),
+      tenantId: i.tenantId,
+      customerId: i.customerId,
+      type: i.type,
+      method: i.method,
+      note: i.note ?? null,
+      occurredAt: i.occurredAt instanceof Date ? i.occurredAt : i.occurredAt ? new Date(i.occurredAt as string) : nowTs(),
+      handledByTeamMemberId: i.handledByTeamMemberId ?? null,
+      handledByPartnerId: i.handledByPartnerId ?? null,
+      createdAt: nowTs(),
+      updatedAt: nowTs(),
+      archivedAt: null,
+    };
+  }
+
   private find(idOrSlug: string): CustomerRow | undefined {
     return this.customers.find((c) => c.id === idOrSlug || c.slug === idOrSlug);
   }
@@ -356,6 +379,7 @@ export class MemoryRepository implements Repository {
       plans: this.plans.filter((p) => p.customerId === c.id),
       quotes: this.quotes.filter((q) => q.customerId === c.id),
       jobs,
+      interactions: this.interactions.filter((i) => i.customerId === c.id),
       reviewsByJob,
       workerNameById: this.workerNames,
     };
@@ -660,6 +684,27 @@ export class MemoryRepository implements Repository {
     this.appointments.push(row);
     const wid = row.assignedTeamMemberId ?? row.assignedPartnerId ?? null;
     return mapAppointment(row, wid ? (this.workerNames.get(wid) ?? null) : null);
+  }
+
+  async addInteraction(
+    customerId: string,
+    input: InteractionCreate,
+  ): Promise<Interaction | undefined> {
+    const c = this.find(customerId);
+    if (!c) return undefined;
+    const row = this.fillInteraction({
+      tenantId: c.tenantId,
+      customerId: c.id,
+      type: input.type,
+      method: input.method,
+      note: input.note,
+      occurredAt: input.occurredAt ? new Date(input.occurredAt) : nowTs(),
+      handledByTeamMemberId: input.handledByTeamMemberId,
+      handledByPartnerId: input.handledByPartnerId,
+    });
+    this.interactions.push(row);
+    const wid = row.handledByTeamMemberId ?? row.handledByPartnerId ?? null;
+    return mapInteraction(row, wid ? (this.workerNames.get(wid) ?? null) : null);
   }
 
   // ── Service offerings ──

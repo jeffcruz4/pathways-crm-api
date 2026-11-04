@@ -12,6 +12,21 @@ Stood the API up from a read-only `/home` scaffold to a relational,
 multi-tenant CRM backend with create endpoints, a dedicated RDS instance, and a
 turnkey deploy + local-dev story.
 
+### #21 · customer interactions log (table + endpoint)
+*(pending)*
+- New `interactions` table (migration `0001_volatile_veda`): `type`
+  (`unplanned | formal-meeting | complaint | compliment`), `method`
+  (`call | text | email | dm`), optional `note`, `occurredAt`, and an optional
+  handler (team member or partner). Indexed by customer and by tenant+time.
+- Contracts: `Interaction` / `InteractionCreate` (+ enums) in `domain/crm.ts`;
+  `Customer.interactions` (newest first) so the 360° record carries the log.
+- Repository (both backends): `addInteraction`; interactions load into the
+  customer bundle and handler names resolve like job assignees.
+- Route: `POST /customers/:id/interactions` (Zod-validated; 400 on a bad
+  enum, 404 on an unknown customer).
+- Seed: 8 sample interactions telling realistic stories (a complaint that
+  preceded a lapse, compliments from regulars, unplanned inbound inquiries).
+
 ### #20 · global keyword search endpoint
 *(pending)*
 - `domain/search.ts`: `SearchResults` (grouped `SearchHit`s with a `type`

@@ -21,6 +21,7 @@ type JobIns = InferInsertModel<typeof schema.jobs>;
 type ReviewIns = InferInsertModel<typeof schema.jobReviews>;
 type TeamMemberIns = InferInsertModel<typeof schema.teamMembers>;
 type PartnerIns = InferInsertModel<typeof schema.partners>;
+type InteractionIns = InferInsertModel<typeof schema.interactions>;
 
 // Stable UUIDs. The "entity" segment must be valid hex, so each entity gets a
 // hex code in the 3rd group (…-00XX-…) and the row number fills the last group.
@@ -146,6 +147,19 @@ export const reviews: ReviewIns[] = [
   { id: rid(2), tenantId: TENANT, jobId: jid(4), customerId: cid(3), rating: 5, reviewText: "Great job, on time.", reviewer: "customer", wouldRecommend: true, reviewedTeamMemberId: eid(2) },
   { id: rid(3), tenantId: TENANT, jobId: jid(7), customerId: cid(7), rating: 4, reviewText: "Move-out clean was thorough.", customerNote: "Ask about recurring", reviewer: "customer", wouldRecommend: true, reviewedPartnerId: nid(1) },
   { id: rid(4), tenantId: TENANT, jobId: jid(6), customerId: cid(6), rating: 3, customerNote: "Hasn't rebooked since; follow up.", reviewer: "staff" },
+];
+
+// Logged touchpoints — a mix of types/methods that tell a story per customer
+// (a complaint that preceded a lapse, compliments from a loyal regular, etc.).
+export const interactions: InteractionIns[] = [
+  { id: U("8c0c", 1), tenantId: TENANT, customerId: cid(6), type: "complaint", method: "call", note: "Said the baseboards were missed after the deep clean. Offered a re-clean; declined.", occurredAt: daysFromNow(-112), handledByTeamMemberId: eid(1) },
+  { id: U("8c0c", 2), tenantId: TENANT, customerId: cid(6), type: "unplanned", method: "text", note: "Asked about pricing for a quarterly clean, then went quiet.", occurredAt: daysFromNow(-70) },
+  { id: U("8c0c", 3), tenantId: TENANT, customerId: cid(2), type: "compliment", method: "text", note: "Texted a thank-you after Maria's visit — 'best the house has looked'.", occurredAt: daysFromNow(-6), handledByTeamMemberId: eid(1) },
+  { id: U("8c0c", 4), tenantId: TENANT, customerId: cid(2), type: "formal-meeting", method: "call", note: "Quarterly check-in. Interested in adding a seasonal deep clean.", occurredAt: daysFromNow(-40) },
+  { id: U("8c0c", 5), tenantId: TENANT, customerId: cid(3), type: "compliment", method: "email", note: "Emailed praise for James's punctuality; asked to keep him as their regular.", occurredAt: daysFromNow(-12), handledByTeamMemberId: eid(2) },
+  { id: U("8c0c", 6), tenantId: TENANT, customerId: cid(1), type: "unplanned", method: "call", note: "Inbound call asking about biweekly pricing and dog-friendly products.", occurredAt: daysFromNow(-2) },
+  { id: U("8c0c", 7), tenantId: TENANT, customerId: cid(4), type: "unplanned", method: "dm", note: "Messaged on Instagram asking if the quote includes inside-the-oven.", occurredAt: daysFromNow(-4) },
+  { id: U("8c0c", 8), tenantId: TENANT, customerId: cid(7), type: "complaint", method: "email", note: "Minor: a contractor arrived 30 min late to the move-out clean. Resolved with a discount.", occurredAt: daysFromNow(-7), handledByPartnerId: nid(1) },
 ];
 
 export const appointments: InferInsertModel<typeof schema.appointments>[] = [

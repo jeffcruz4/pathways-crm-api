@@ -17,6 +17,7 @@ import {
   mapJob,
   mapServiceOffering,
   mapAppointment,
+  mapInteraction,
   partnerListItem,
   partnerDetail,
   type CustomerBundle,
@@ -48,6 +49,8 @@ import type {
   ServiceOfferingUpdate,
   Appointment,
   AppointmentCreate,
+  Interaction,
+  InteractionCreate,
 } from "../domain/crm.js";
 
 /** True when the string is a canonical UUID (guards `WHERE id = $1` on uuid columns). */
@@ -86,12 +89,13 @@ export class PostgresRepository implements Repository {
     customer: InferSelectModel<typeof schema.customers>,
   ): Promise<CustomerBundle> {
     const cid = customer.id;
-    const [contacts, properties, plans, quotes, jobs] = await Promise.all([
+    const [contacts, properties, plans, quotes, jobs, interactions] = await Promise.all([
       this.db.select().from(schema.customerContacts).where(eq(schema.customerContacts.customerId, cid)),
       this.db.select().from(schema.properties).where(eq(schema.properties.customerId, cid)),
       this.db.select().from(schema.plans).where(eq(schema.plans.customerId, cid)),
       this.db.select().from(schema.quotes).where(eq(schema.quotes.customerId, cid)),
       this.db.select().from(schema.jobs).where(eq(schema.jobs.customerId, cid)),
+      this.db.select().from(schema.interactions).where(eq(schema.interactions.customerId, cid)),
     ]);
 
     const jobIds = jobs.map((j) => j.id);
@@ -100,9 +104,15 @@ export class PostgresRepository implements Repository {
       : [];
     const reviewsByJob = new Map(reviews.map((r) => [r.jobId, r]));
 
-    // Resolve worker display names for assigned jobs.
-    const teamMemberIds = jobs.map((j) => j.assignedTeamMemberId).filter((x): x is string => !!x);
-    const partnerIds = jobs.map((j) => j.assignedPartnerId).filter((x): x is string => !!x);
+    // Resolve worker display names for assigned jobs + interaction handlers.
+    const teamMemberIds = [
+      ...jobs.map((j) => j.assignedTeamMemberId),
+      ...interactions.map((i) => i.handledByTeamMemberId),
+    ].filter((x): x is string => !!x);
+    const partnerIds = [
+      ...jobs.map((j) => j.assignedPartnerId),
+      ...interactions.map((i) => i.handledByPartnerId),
+    ].filter((x): x is string => !!x);
     const workerNameById = new Map<string, string>();
     if (teamMemberIds.length) {
       const rows = await this.db
@@ -119,7 +129,7 @@ export class PostgresRepository implements Repository {
       for (const r of rows) workerNameById.set(r.id, r.displayName);
     }
 
-    return { customer, contacts, properties, plans, quotes, jobs, reviewsByJob, workerNameById };
+    return { customer, contacts, properties, plans, quotes, jobs, interactions, reviewsByJob, workerNameById };
   }
 
   // ── Home / digest: not modeled in this schema yet ──
@@ -476,6 +486,29 @@ export class PostgresRepository implements Repository {
       .returning();
     const name = await this.workerName(row.assignedTeamMemberId, row.assignedPartnerId);
     return mapAppointment(row, name);
+  }
+
+  async addInteraction(
+    customerId: string,
+    input: InteractionCreate,
+  ): Promise<Interaction | undefined> {
+    const c = await this.resolveCustomer(customerId);
+    if (!c) return undefined;
+    const [row] = await this.db
+      .insert(schema.interactions)
+      .values({
+        tenantId: c.tenantId,
+        customerId: c.id,
+        type: input.type,
+        method: input.method,
+        note: input.note,
+        occurredAt: input.occurredAt ? new Date(input.occurredAt) : undefined,
+        handledByTeamMemberId: input.handledByTeamMemberId,
+        handledByPartnerId: input.handledByPartnerId,
+      })
+      .returning();
+    const name = await this.workerName(row.handledByTeamMemberId, row.handledByPartnerId);
+    return mapInteraction(row, name);
   }
 
   // ── Service offerings (reusable catalog) ──

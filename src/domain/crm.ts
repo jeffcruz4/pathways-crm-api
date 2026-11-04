@@ -32,6 +32,9 @@ export const AppointmentStatus = z.enum([
   "no-show",
 ]);
 
+export const InteractionType = z.enum(["unplanned", "formal-meeting", "complaint", "compliment"]);
+export const InteractionMethod = z.enum(["call", "text", "email", "dm"]);
+
 // ── Contacts ──
 export const Contact = z.object({
   id: z.string(),
@@ -271,8 +274,32 @@ export const AppointmentCreate = z.object({
   locationOverride: z.string().optional(),
 });
 
+// ── Interactions (logged touchpoints that signal service needs) ──
+export const Interaction = z.object({
+  id: z.string(),
+  type: InteractionType,
+  method: InteractionMethod,
+  note: z.string().nullable(),
+  occurredAt: z.string(),
+  /** Display name of the team member / partner who handled it, if any. */
+  handledBy: z.string().nullable(),
+});
+export const InteractionCreate = z.object({
+  type: InteractionType,
+  method: InteractionMethod,
+  note: z.string().optional(),
+  /** ISO timestamp; defaults to now. */
+  occurredAt: z.string().optional(),
+  handledByTeamMemberId: z.string().optional(),
+  handledByPartnerId: z.string().optional(),
+});
+
 export type Contact = z.infer<typeof Contact>;
 export type ContactCreate = z.infer<typeof ContactCreate>;
+export type Interaction = z.infer<typeof Interaction>;
+export type InteractionCreate = z.infer<typeof InteractionCreate>;
+export type InteractionType = z.infer<typeof InteractionType>;
+export type InteractionMethod = z.infer<typeof InteractionMethod>;
 export type Property = z.infer<typeof Property>;
 export type PropertyCreate = z.infer<typeof PropertyCreate>;
 export type PropertyUpdate = z.infer<typeof PropertyUpdate>;

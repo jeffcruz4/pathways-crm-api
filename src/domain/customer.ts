@@ -6,6 +6,7 @@ import {
   Plan,
   Quote,
   Job,
+  Interaction,
   ContactChannel,
 } from "./crm.js";
 
@@ -65,6 +66,8 @@ export const Customer = z.object({
   plans: z.array(Plan),
   quotes: z.array(Quote),
   jobs: z.array(Job),
+  /** Logged touchpoints, newest first. */
+  interactions: z.array(Interaction),
 });
 
 /** Lightweight shape returned by the list endpoint (no heavy detail fields). */

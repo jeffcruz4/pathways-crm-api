@@ -26,6 +26,8 @@ import type {
   ServiceOfferingUpdate,
   Appointment,
   AppointmentCreate,
+  Interaction,
+  InteractionCreate,
 } from "../domain/crm.js";
 
 /**
@@ -58,6 +60,7 @@ export interface Repository {
   addJobReview(customerId: string, jobId: string, input: ReviewCreate): Promise<Review | undefined>;
   listAppointments(customerId: string): Promise<Appointment[] | undefined>;
   createAppointment(customerId: string, input: AppointmentCreate): Promise<Appointment | undefined>;
+  addInteraction(customerId: string, input: InteractionCreate): Promise<Interaction | undefined>;
 
   // Service offerings (reusable catalog / plan templates)
   listServiceOfferings(): Promise<ServiceOffering[]>;
