@@ -68,8 +68,17 @@ export function mapAppointment(r: AppointmentRow, assigneeName: string | null): 
   };
 }
 
-// ── Partners (rollups leads/jobs/value derived; 0 until computed — design Q6) ──
-export function partnerListItem(r: PartnerRow): PartnerListItem {
+// ── Partners (rollups leads/jobs/value + related entities derived — design Q6) ──
+
+/** Rollup counts for a partner, computed from referred customers + covered jobs. */
+export type PartnerRollups = {
+  leadsGenerated: number;
+  jobsCovered: number;
+  /** Lifetime value in whole dollars (sum of completed covered jobs). */
+  value: number;
+};
+
+export function partnerListItem(r: PartnerRow, rollups: PartnerRollups): PartnerListItem {
   return {
     id: r.id,
     name: r.displayName,
@@ -77,27 +86,37 @@ export function partnerListItem(r: PartnerRow): PartnerListItem {
     location: r.location ?? "",
     type: r.type,
     stage: r.stage,
-    leadsGenerated: 0,
-    jobsCovered: 0,
-    value: 0,
+    leadsGenerated: rollups.leadsGenerated,
+    jobsCovered: rollups.jobsCovered,
+    value: rollups.value,
   };
 }
 
-export function partnerDetail(r: PartnerRow): Partner {
+export function partnerDetail(
+  r: PartnerRow,
+  rollups: PartnerRollups,
+  relatedCustomers: Partner["relatedCustomers"],
+  relatedJobs: Partner["relatedJobs"],
+): Partner {
   return {
     id: r.id,
     name: r.displayName,
     contact: r.contactName ?? "",
+    email: r.email ?? null,
+    phone: r.phone ?? null,
     location: r.location ?? "",
     type: r.type,
     stage: r.stage,
-    leadsGenerated: 0,
-    jobsCovered: 0,
-    value: 0,
+    skills: r.skills,
+    commissionBps: r.commissionBps ?? null,
+    leadsGenerated: rollups.leadsGenerated,
+    jobsCovered: rollups.jobsCovered,
+    value: rollups.value,
     since: r.since ?? "",
     summary: r.summary,
-    employment: { engagement: "", rate: "", coverage: "", insurance: "" },
-    activity: [],
+    notes: r.notes ?? null,
+    relatedCustomers,
+    relatedJobs,
   };
 }
 
@@ -404,5 +423,85 @@ export function assembleCustomerStats(
     signupsTrend,
     revenueTrend,
     jobMix: { pending, completed: completed.length },
+  };
+}
+
+// ── Partner derivations (rollups + related customers/jobs) ──
+
+type PartnerRelations = {
+  rollups: PartnerRollups;
+  relatedCustomers: Partner["relatedCustomers"];
+  relatedJobs: Partner["relatedJobs"];
+};
+
+/**
+ * Compute a partner's rollups + related entities from the relational rows.
+ * Pure: both repositories pass the partner's referred customers, the jobs this
+ * partner covered, and a customer-name resolver.
+ *
+ *   - leadsGenerated = customers whose referredByPartnerId = partner
+ *   - jobsCovered    = jobs whose assignedPartnerId = partner
+ *   - value          = sum of completed covered jobs' prices (whole dollars)
+ *   - relatedCustomers = referred ∪ served (customers of the covered jobs)
+ *   - relatedJobs    = the covered jobs, newest first
+ */
+export function partnerRelations(
+  referredCustomers: CustomerRow[],
+  coveredJobs: JobRow[],
+  customerById: Map<string, CustomerRow>,
+): PartnerRelations {
+  const valueCents = coveredJobs
+    .filter((j) => j.status === "completed")
+    .reduce((sum, j) => sum + (j.priceCents ?? 0), 0);
+
+  // Tally jobs-covered per customer (from the covered jobs).
+  const jobsByCustomer = new Map<string, number>();
+  for (const j of coveredJobs) {
+    jobsByCustomer.set(j.customerId, (jobsByCustomer.get(j.customerId) ?? 0) + 1);
+  }
+
+  const referredIds = new Set(referredCustomers.map((c) => c.id));
+  const servedIds = new Set(coveredJobs.map((j) => j.customerId));
+  const allIds = new Set<string>([...referredIds, ...servedIds]);
+
+  const relatedCustomers: Partner["relatedCustomers"] = [];
+  for (const id of allIds) {
+    const c = customerById.get(id);
+    if (!c) continue;
+    const isReferred = referredIds.has(id);
+    const isServed = servedIds.has(id);
+    relatedCustomers.push({
+      id: c.id,
+      name: c.displayName,
+      relationship: isReferred && isServed ? "both" : isReferred ? "referred" : "served",
+      status: c.status,
+      jobsCovered: jobsByCustomer.get(id) ?? 0,
+    });
+  }
+  relatedCustomers.sort((a, b) => a.name.localeCompare(b.name));
+
+  const relatedJobs: Partner["relatedJobs"] = [...coveredJobs]
+    .sort((a, z) => {
+      const ad = (a.completedAt ?? a.scheduledStart)?.getTime() ?? 0;
+      const zd = (z.completedAt ?? z.scheduledStart)?.getTime() ?? 0;
+      return zd - ad;
+    })
+    .map((j) => ({
+      id: j.id,
+      customerName: customerById.get(j.customerId)?.displayName ?? "—",
+      serviceType: j.serviceType,
+      status: j.status,
+      date: iso(j.completedAt ?? j.scheduledStart),
+      price: j.priceCents == null ? null : formatMoney(j.priceCents, j.currency),
+    }));
+
+  return {
+    rollups: {
+      leadsGenerated: referredCustomers.length,
+      jobsCovered: coveredJobs.length,
+      value: Math.round(valueCents / 100),
+    },
+    relatedCustomers,
+    relatedJobs,
   };
 }

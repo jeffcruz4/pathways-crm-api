@@ -7,6 +7,7 @@ import type { InferSelectModel } from "drizzle-orm";
 import {
   assembleCustomer,
   assembleCustomerStats,
+  partnerRelations,
   mapContact,
   mapProperty,
   mapPlan,
@@ -20,7 +21,7 @@ import {
   type CustomerBundle,
 } from "./assemble.js";
 import type { Customer, CustomerListItem, CustomerCreate, CustomerUpdate } from "../domain/customer.js";
-import type { Partner, PartnerListItem, PartnerCreate } from "../domain/partner.js";
+import type { Partner, PartnerListItem, PartnerCreate, PartnerUpdate } from "../domain/partner.js";
 import type { TeamMember, TeamMemberListItem, TeamMemberCreate } from "../domain/team-member.js";
 import type { CustomerStats } from "../domain/customer-stats.js";
 import type { Pipeline, PipelineStage } from "../domain/deal.js";
@@ -47,6 +48,11 @@ import type {
   AppointmentCreate,
 } from "../domain/crm.js";
 
+/** True when the string is a canonical UUID (guards `WHERE id = $1` on uuid columns). */
+function isUuid(s: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+}
+
 /**
  * Postgres (Drizzle) repository over the relational schema. The customer record
  * is assembled from related tables (contacts/properties/plans/quotes/jobs +
@@ -69,9 +75,7 @@ export class PostgresRepository implements Repository {
 
   // Resolve a customer from either a UUID or a human slug.
   private async resolveCustomer(idOrSlug: string) {
-    const isUuid =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrSlug);
-    const col = isUuid ? schema.customers.id : schema.customers.slug;
+    const col = isUuid(idOrSlug) ? schema.customers.id : schema.customers.slug;
     const [row] = await this.db.select().from(schema.customers).where(eq(col, idOrSlug));
     return row;
   }
@@ -527,15 +531,47 @@ export class PostgresRepository implements Repository {
     return null;
   }
 
-  // ── Partners (list/detail; rollups derived — 0 until computed) ──
+  // ── Partners (list/detail; rollups + related entities derived — design Q6) ──
   async listPartners(): Promise<PartnerListItem[]> {
-    const rows = await this.db.select().from(schema.partners);
-    return rows.map(partnerListItem);
+    const [partners, customers, jobs] = await Promise.all([
+      this.db.select().from(schema.partners),
+      this.db.select().from(schema.customers),
+      this.db.select().from(schema.jobs),
+    ]);
+    const byId = new Map(customers.map((c) => [c.id, c]));
+    return partners.map((p) => {
+      const referred = customers.filter((c) => c.referredByPartnerId === p.id);
+      const covered = jobs.filter((j) => j.assignedPartnerId === p.id);
+      const { rollups } = partnerRelations(referred, covered, byId);
+      return partnerListItem(p, rollups);
+    });
   }
 
   async getPartner(id: string): Promise<Partner | undefined> {
-    const [r] = await this.db.select().from(schema.partners).where(eq(schema.partners.id, id));
-    return r ? partnerDetail(r) : undefined;
+    if (!isUuid(id)) return undefined;
+    const [p] = await this.db.select().from(schema.partners).where(eq(schema.partners.id, id));
+    if (!p) return undefined;
+    return this.assemblePartner(p);
+  }
+
+  /** Assemble a partner's rollups + related customers/jobs from related rows. */
+  private async assemblePartner(
+    p: InferSelectModel<typeof schema.partners>,
+  ): Promise<Partner> {
+    const [referred, covered] = await Promise.all([
+      this.db.select().from(schema.customers).where(eq(schema.customers.referredByPartnerId, p.id)),
+      this.db.select().from(schema.jobs).where(eq(schema.jobs.assignedPartnerId, p.id)),
+    ]);
+    // Resolve names for the customers involved (referred ∪ served).
+    const ids = Array.from(new Set([...referred.map((c) => c.id), ...covered.map((j) => j.customerId)]));
+    const customers = ids.length
+      ? await this.db.select().from(schema.customers).where(inArray(schema.customers.id, ids))
+      : [];
+    const byId = new Map(customers.map((c) => [c.id, c]));
+    // Ensure referred rows are in the map too (they're a subset of `customers`).
+    for (const c of referred) byId.set(c.id, c);
+    const { rollups, relatedCustomers, relatedJobs } = partnerRelations(referred, covered, byId);
+    return partnerDetail(p, rollups, relatedCustomers, relatedJobs);
   }
 
   async createPartner(input: PartnerCreate): Promise<Partner> {
@@ -558,7 +594,32 @@ export class PostgresRepository implements Repository {
         notes: input.notes,
       })
       .returning();
-    return partnerDetail(r);
+    return this.assemblePartner(r);
+  }
+
+  async updatePartner(id: string, input: PartnerUpdate): Promise<Partner | undefined> {
+    if (!isUuid(id)) return undefined;
+    const [existing] = await this.db.select().from(schema.partners).where(eq(schema.partners.id, id));
+    if (!existing) return undefined;
+    const patch: Record<string, unknown> = { updatedAt: new Date() };
+    if (input.name !== undefined) patch.displayName = input.name;
+    if (input.type !== undefined) patch.type = input.type;
+    if (input.stage !== undefined) patch.stage = input.stage;
+    if (input.contactName !== undefined) patch.contactName = input.contactName;
+    if (input.email !== undefined) patch.email = input.email;
+    if (input.phone !== undefined) patch.phone = input.phone;
+    if (input.location !== undefined) patch.location = input.location;
+    if (input.since !== undefined) patch.since = input.since;
+    if (input.skills !== undefined) patch.skills = input.skills;
+    if (input.commissionBps !== undefined) patch.commissionBps = input.commissionBps;
+    if (input.summary !== undefined) patch.summary = input.summary;
+    if (input.notes !== undefined) patch.notes = input.notes;
+    const [r] = await this.db
+      .update(schema.partners)
+      .set(patch)
+      .where(eq(schema.partners.id, id))
+      .returning();
+    return this.assemblePartner(r);
   }
 
   // ── Team members (full-time staff) ──
