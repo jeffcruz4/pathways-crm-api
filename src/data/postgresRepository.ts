@@ -1,4 +1,4 @@
-import { eq, and, asc, inArray } from "drizzle-orm";
+import { eq, and, asc, inArray, isNotNull, gte } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import type { Repository } from "./repository.js";
 import * as schema from "../db/schema.js";
@@ -26,6 +26,7 @@ import {
   mapInteraction,
   partnerListItem,
   partnerDetail,
+  upcomingPartnerItems,
   type CustomerBundle,
 } from "./assemble.js";
 import type { Customer, CustomerListItem, CustomerCreate, CustomerUpdate } from "../domain/customer.js";
@@ -35,6 +36,7 @@ import type {
   PartnerCreate,
   PartnerUpdate,
   PartnerHighlights,
+  UpcomingPartnerItem,
 } from "../domain/partner.js";
 import type { TeamMember, TeamMemberListItem, TeamMemberCreate, TeamStats } from "../domain/team-member.js";
 import type { CustomerStats } from "../domain/customer-stats.js";
@@ -706,6 +708,38 @@ export class PostgresRepository implements Repository {
       this.db.select().from(schema.jobReviews),
     ]);
     return assemblePartnerHighlights(partners, customers, jobs, reviews);
+  }
+
+  async getUpcomingPartnerItems(): Promise<UpcomingPartnerItem[]> {
+    const now = new Date();
+    const [jobs, appointments] = await Promise.all([
+      this.db
+        .select()
+        .from(schema.jobs)
+        .where(and(isNotNull(schema.jobs.assignedPartnerId), gte(schema.jobs.scheduledStart, now))),
+      this.db
+        .select()
+        .from(schema.appointments)
+        .where(
+          and(isNotNull(schema.appointments.assignedPartnerId), gte(schema.appointments.startsAt, now)),
+        ),
+    ]);
+    const partnerIds = Array.from(
+      new Set(
+        [...jobs, ...appointments]
+          .map((r) => r.assignedPartnerId)
+          .filter((x): x is string => !!x),
+      ),
+    );
+    const names = new Map<string, string>();
+    if (partnerIds.length) {
+      const rows = await this.db
+        .select()
+        .from(schema.partners)
+        .where(inArray(schema.partners.id, partnerIds));
+      for (const r of rows) names.set(r.id, r.displayName);
+    }
+    return upcomingPartnerItems(jobs, appointments, names, now);
   }
 
   async createTeamMember(input: TeamMemberCreate): Promise<TeamMember> {

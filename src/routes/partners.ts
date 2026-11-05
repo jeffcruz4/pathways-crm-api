@@ -14,6 +14,13 @@ export function partnerRoutes(repo: Repository) {
     // screen. Static path; Fastify matches it ahead of `/partners/:id`.
     app.get("/partners/stats", async () => repo.getPartnerHighlights());
 
+    // Upcoming partner engagements (future partner-assigned jobs + appts).
+    // Static path; must be declared ahead of `/partners/:id`.
+    app.get("/partners/upcoming", async () => {
+      const items = await repo.getUpcomingPartnerItems();
+      return { items };
+    });
+
     app.get<{ Params: { id: string } }>("/partners/:id", async (req, reply) => {
       const partner = await repo.getPartner(req.params.id);
       if (!partner) {

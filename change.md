@@ -12,6 +12,20 @@ Stood the API up from a read-only `/home` scaffold to a relational,
 multi-tenant CRM backend with create endpoints, a dedicated RDS instance, and a
 turnkey deploy + local-dev story.
 
+### #26 · partners: upcoming engagements endpoint
+*(pending)*
+- `GET /partners/upcoming` + `UpcomingPartnerItem` ({ id, partnerId,
+  partnerName, when, label, source }): future partner-assigned jobs +
+  appointments, merged and sorted soonest-first. Skips cancelled/completed/
+  no-show and unknown partners.
+- Shared pure helper `upcomingPartnerItems(jobs, appointments, nameById, now)`
+  in `assemble.ts`; both backends implement `getUpcomingPartnerItems()`
+  (Postgres filters with `isNotNull(assignedPartnerId)` + `gte(date, now)`).
+- Seed: two future partner-covered jobs (SparkClean deep clean +3d, A&J
+  move-out +6d) and one partner sync appointment (SparkClean onboarding
+  check-in +4d) so the Partners "Upcoming" strip has data. Now 29 jobs,
+  4 appointments.
+
 ### #25 · infra: Cognito user pool (Terraform)
 *(pending)*
 - New `modules/cognito`: a user pool (email sign-in, strong password policy,

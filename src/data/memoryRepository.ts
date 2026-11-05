@@ -25,6 +25,7 @@ import {
   mapAppointment,
   mapInteraction,
   partnerListItem,
+  upcomingPartnerItems,
   partnerDetail,
   type CustomerBundle,
 } from "./assemble.js";
@@ -37,6 +38,7 @@ import type {
   PartnerCreate,
   PartnerUpdate,
   PartnerHighlights,
+  UpcomingPartnerItem,
 } from "../domain/partner.js";
 import type { TeamMember, TeamMemberListItem, TeamMemberCreate, TeamStats } from "../domain/team-member.js";
 import type {
@@ -846,6 +848,10 @@ export class MemoryRepository implements Repository {
 
   async getPartnerHighlights(): Promise<PartnerHighlights> {
     return assemblePartnerHighlights(this.partners, this.customers, this.jobs, this.reviews);
+  }
+
+  async getUpcomingPartnerItems(): Promise<UpcomingPartnerItem[]> {
+    return upcomingPartnerItems(this.jobs, this.appointments, this.workerNames);
   }
 
   async createTeamMember(input: TeamMemberCreate): Promise<TeamMember> {

@@ -23,7 +23,7 @@ import type {
   Appointment,
   Interaction,
 } from "../domain/crm.js";
-import type { Partner, PartnerListItem } from "../domain/partner.js";
+import type { Partner, PartnerListItem, UpcomingPartnerItem } from "../domain/partner.js";
 
 type CustomerRow = InferSelectModel<typeof schema.customers>;
 type ContactRow = InferSelectModel<typeof schema.customerContacts>;
@@ -133,6 +133,66 @@ export function partnerDetail(
     relatedCustomers,
     relatedJobs,
   };
+}
+
+/** Service-type → friendly label for upcoming-item lines. */
+const SERVICE_LABEL: Record<string, string> = {
+  standard: "Standard clean",
+  deep: "Deep clean",
+  "move-out": "Move-out clean",
+  "move-in": "Move-in clean",
+  "post-construction": "Post-construction clean",
+};
+function serviceLabel(serviceType: string): string {
+  return SERVICE_LABEL[serviceType] ?? "Clean";
+}
+
+/**
+ * Upcoming engagements with partners — future partner-assigned jobs +
+ * appointments, merged and sorted soonest-first. Pure: callers pass raw rows
+ * plus a partnerId→name map and "now"; unknown partners are skipped.
+ */
+export function upcomingPartnerItems(
+  jobs: JobRow[],
+  appointments: AppointmentRow[],
+  partnerNameById: Map<string, string>,
+  now = new Date(),
+): UpcomingPartnerItem[] {
+  const items: UpcomingPartnerItem[] = [];
+
+  for (const j of jobs) {
+    if (j.assigneeType !== "partner" || !j.assignedPartnerId) continue;
+    if (!j.scheduledStart || j.scheduledStart.getTime() < now.getTime()) continue;
+    if (j.status === "cancelled" || j.status === "completed" || j.status === "no-show") continue;
+    const name = partnerNameById.get(j.assignedPartnerId);
+    if (!name) continue;
+    items.push({
+      id: j.id,
+      partnerId: j.assignedPartnerId,
+      partnerName: name,
+      when: j.scheduledStart.toISOString(),
+      label: serviceLabel(j.serviceType),
+      source: "job",
+    });
+  }
+
+  for (const a of appointments) {
+    if (a.assigneeType !== "partner" || !a.assignedPartnerId) continue;
+    if (!a.startsAt || a.startsAt.getTime() < now.getTime()) continue;
+    if (a.status === "cancelled" || a.status === "completed" || a.status === "no-show") continue;
+    const name = partnerNameById.get(a.assignedPartnerId);
+    if (!name) continue;
+    items.push({
+      id: a.id,
+      partnerId: a.assignedPartnerId,
+      partnerName: name,
+      when: a.startsAt.toISOString(),
+      label: a.detail?.trim() || a.title,
+      source: "appointment",
+    });
+  }
+
+  return items.sort((x, y) => x.when.localeCompare(y.when));
 }
 
 export function mapContact(r: ContactRow): Contact {

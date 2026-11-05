@@ -5,6 +5,7 @@ import type {
   PartnerCreate,
   PartnerUpdate,
   PartnerHighlights,
+  UpcomingPartnerItem,
 } from "../domain/partner.js";
 import type { TeamMember, TeamMemberListItem, TeamMemberCreate, TeamStats } from "../domain/team-member.js";
 import type { CustomerStats } from "../domain/customer-stats.js";
@@ -83,6 +84,7 @@ export interface Repository {
   createPartner(input: PartnerCreate): Promise<Partner>;
   updatePartner(id: string, input: PartnerUpdate): Promise<Partner | undefined>;
   getPartnerHighlights(): Promise<PartnerHighlights>;
+  getUpcomingPartnerItems(): Promise<UpcomingPartnerItem[]>;
 
   // Team members (full-time staff)
   listTeamMembers(): Promise<TeamMemberListItem[]>;

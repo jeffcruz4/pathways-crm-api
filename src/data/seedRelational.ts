@@ -155,6 +155,9 @@ export const jobs: JobIns[] = [
   { id: jid(30), tenantId: TENANT, customerId: cid(3), propertyId: pid(3), status: "completed", serviceType: "standard", scheduledStart: daysFromNow(-26), completedAt: daysFromNow(-26), assigneeType: "partner", assignedPartnerId: nid(3), priceCents: 14000 },
   { id: jid(31), tenantId: TENANT, customerId: cid(2), propertyId: pid(2), status: "completed", serviceType: "deep", scheduledStart: daysFromNow(-33), completedAt: daysFromNow(-33), assigneeType: "partner", assignedPartnerId: nid(3), priceCents: 21000 },
   { id: jid(32), tenantId: TENANT, customerId: cid(7), propertyId: pid(7), status: "completed", serviceType: "standard", scheduledStart: daysFromNow(-16), completedAt: daysFromNow(-16), assigneeType: "partner", assignedPartnerId: nid(3), priceCents: 13000 },
+  // ── Upcoming partner-covered work (powers Partners → "Upcoming") ──
+  { id: jid(33), tenantId: TENANT, customerId: cid(3), propertyId: pid(3), status: "scheduled", serviceType: "deep", scheduledStart: daysFromNow(3), assigneeType: "partner", assignedPartnerId: nid(3), priceCents: 21000 },
+  { id: jid(34), tenantId: TENANT, customerId: cid(7), propertyId: pid(7), status: "scheduled", serviceType: "move-out", scheduledStart: daysFromNow(6), assigneeType: "partner", assignedPartnerId: nid(1), priceCents: 28000 },
 ];
 
 export const reviews: ReviewIns[] = [
@@ -193,4 +196,6 @@ export const appointments: InferInsertModel<typeof schema.appointments>[] = [
   { id: U("8c0b", 1), tenantId: TENANT, customerId: cid(2), propertyId: pid(2), jobId: jid(3), kind: "clean", status: "scheduled", title: "Gloria Hynes — weekly clean", detail: "Standard clean", startsAt: daysFromNow(7), durationMin: 120, assigneeType: "team_member", assignedTeamMemberId: eid(1) },
   { id: U("8c0b", 2), tenantId: TENANT, customerId: cid(3), propertyId: pid(3), jobId: jid(5), kind: "clean", status: "scheduled", title: "Marcus Reed — weekly clean", detail: "Standard clean", startsAt: daysFromNow(2), durationMin: 120, assigneeType: "team_member", assignedTeamMemberId: eid(2) },
   { id: U("8c0b", 3), tenantId: TENANT, customerId: cid(1), propertyId: pid(1), quoteId: qid(1), kind: "quote-visit", status: "scheduled", title: "Tom Becker — walkthrough", detail: "Quote visit for deep clean", startsAt: daysFromNow(1), durationMin: 45 },
+  // ── Partner sync (powers Partners → "Upcoming") ──
+  { id: U("8c0b", 4), tenantId: TENANT, kind: "call", status: "scheduled", title: "SparkClean Crew — sync", detail: "Onboarding check-in", startsAt: daysFromNow(4), durationMin: 30, assigneeType: "partner", assignedPartnerId: nid(3) },
 ];
