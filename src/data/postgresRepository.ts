@@ -29,6 +29,8 @@ import {
   upcomingPartnerItems,
   assembleUserProfile,
   mergePreferences,
+  mapNotification,
+  assembleNotificationList,
   type CustomerBundle,
 } from "./assemble.js";
 import type { Customer, CustomerListItem, CustomerCreate, CustomerUpdate } from "../domain/customer.js";
@@ -42,6 +44,12 @@ import type {
 } from "../domain/partner.js";
 import type { TeamMember, TeamMemberListItem, TeamMemberCreate, TeamStats } from "../domain/team-member.js";
 import type { UserProfile, UserProfileUpdate, UserIdentity } from "../domain/user-profile.js";
+import type {
+  Notification,
+  NotificationUpdate,
+  NotificationFilter,
+  NotificationList,
+} from "../domain/notification.js";
 import type { CustomerStats } from "../domain/customer-stats.js";
 import type { SearchResults } from "../domain/search.js";
 import type { Pipeline, PipelineStage, PipelineStats } from "../domain/deal.js";
@@ -758,6 +766,36 @@ export class PostgresRepository implements Repository {
         .returning();
     }
     return assembleUserProfile(identity, tenant, row);
+  }
+
+  // ── Notifications ──
+  async listNotifications(filter: NotificationFilter): Promise<NotificationList> {
+    const rows = await this.db.select().from(schema.notifications);
+    return assembleNotificationList(rows, filter);
+  }
+
+  async updateNotification(id: string, input: NotificationUpdate): Promise<Notification | undefined> {
+    if (!isUuid(id)) return undefined;
+    const [existing] = await this.db
+      .select()
+      .from(schema.notifications)
+      .where(eq(schema.notifications.id, id));
+    if (!existing) return undefined;
+    const patch: Record<string, unknown> = { updatedAt: new Date() };
+    if (input.read !== undefined) patch.read = input.read;
+    if (input.saved !== undefined) patch.saved = input.saved;
+    const [row] = await this.db
+      .update(schema.notifications)
+      .set(patch)
+      .where(eq(schema.notifications.id, id))
+      .returning();
+    return mapNotification(row);
+  }
+
+  async markAllNotificationsRead(): Promise<NotificationList> {
+    await this.db.update(schema.notifications).set({ read: true, updatedAt: new Date() });
+    const rows = await this.db.select().from(schema.notifications);
+    return assembleNotificationList(rows, "all");
   }
 
   async getPartnerHighlights(): Promise<PartnerHighlights> {

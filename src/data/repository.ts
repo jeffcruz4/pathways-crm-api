@@ -9,6 +9,12 @@ import type {
 } from "../domain/partner.js";
 import type { TeamMember, TeamMemberListItem, TeamMemberCreate, TeamStats } from "../domain/team-member.js";
 import type { UserProfile, UserProfileUpdate, UserIdentity } from "../domain/user-profile.js";
+import type {
+  Notification,
+  NotificationUpdate,
+  NotificationFilter,
+  NotificationList,
+} from "../domain/notification.js";
 import type { CustomerStats } from "../domain/customer-stats.js";
 import type { SearchResults } from "../domain/search.js";
 import type { Pipeline, PipelineStats } from "../domain/deal.js";
@@ -95,6 +101,11 @@ export interface Repository {
   // Current user (settings) — identity from claims, editable fields stored by sub
   getMyProfile(identity: UserIdentity): Promise<UserProfile>;
   updateMyProfile(identity: UserIdentity, input: UserProfileUpdate): Promise<UserProfile>;
+
+  // Notifications center
+  listNotifications(filter: NotificationFilter): Promise<NotificationList>;
+  updateNotification(id: string, input: NotificationUpdate): Promise<Notification | undefined>;
+  markAllNotificationsRead(): Promise<NotificationList>;
 
   // Global keyword search (all object types)
   search(query: string): Promise<SearchResults>;
