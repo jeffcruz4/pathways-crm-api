@@ -895,3 +895,79 @@ export function assemblePartnerHighlights(
     producingPartners: Array.from(production.values()).filter((c) => c > 0).length,
   };
 }
+
+// ── Pipeline: stage ⇄ quote-status mapping + stats ──
+
+import type { PipelineStats } from "../domain/deal.js";
+
+/** UI pipeline stages in display order (label + dot come from here). */
+export const PIPELINE_STAGES: { id: string; label: string; dot: string }[] = [
+  { id: "new", label: "New", dot: "var(--pw-color-text-secondary)" },
+  { id: "needs-quote", label: "Needs quote", dot: "var(--pw-color-warning)" },
+  { id: "quote-sent", label: "Quote sent", dot: "var(--pw-color-info)" },
+  { id: "follow-up", label: "Follow-up", dot: "var(--pw-color-warning)" },
+  { id: "booked", label: "Booked", dot: "var(--pw-color-success)" },
+];
+
+/** Quote status → the UI stage it lands in. */
+export const STATUS_TO_STAGE: Record<string, string> = {
+  draft: "new",
+  sent: "quote-sent",
+  "follow-up": "follow-up",
+  accepted: "booked",
+  declined: "booked",
+  expired: "new",
+};
+
+/**
+ * UI stage → the quote status set when a card is dragged there. Inverse of
+ * STATUS_TO_STAGE, picking a sensible representative status per stage.
+ */
+export const STAGE_TO_STATUS: Record<string, QuoteRow["status"]> = {
+  new: "draft",
+  "needs-quote": "draft",
+  "quote-sent": "sent",
+  "follow-up": "follow-up",
+  booked: "accepted",
+};
+
+/** A quote is "open" until it's decided (accepted/declined) or expired. */
+export function isOpenQuote(q: QuoteRow): boolean {
+  return q.status === "draft" || q.status === "sent" || q.status === "follow-up";
+}
+
+/** Assemble the pipeline stats (open value, per-stage counts, 90-day new trend). */
+export function assemblePipelineStats(quotes: QuoteRow[], now = new Date()): PipelineStats {
+  const live = quotes.filter((q) => !q.archivedAt);
+  const open = live.filter(isOpenQuote);
+  const openCents = open.reduce((sum, q) => sum + (q.amountCents ?? 0), 0);
+
+  const byStageMap = new Map<string, number>();
+  for (const s of PIPELINE_STAGES) byStageMap.set(s.id, 0);
+  for (const q of live) {
+    const stage = STATUS_TO_STAGE[q.status] ?? "new";
+    byStageMap.set(stage, (byStageMap.get(stage) ?? 0) + 1);
+  }
+  const byStage = PIPELINE_STAGES.map((s) => ({
+    stageId: s.id as PipelineStats["byStage"][number]["stageId"],
+    label: s.label,
+    count: byStageMap.get(s.id) ?? 0,
+  }));
+
+  // New-opportunity trend: created-at per day, trailing 90 days, zero-filled.
+  const byDay = new Map<string, number>();
+  for (const q of live) {
+    if (!q.createdAt) continue;
+    const k = dayKey(q.createdAt);
+    byDay.set(k, (byDay.get(k) ?? 0) + 1);
+  }
+  const newTrend: PipelineStats["newTrend"] = [];
+  for (let i = 89; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    const k = dayKey(d);
+    newTrend.push({ date: k, count: byDay.get(k) ?? 0 });
+  }
+
+  return { openValue: formatMoney(openCents), openCount: open.length, byStage, newTrend };
+}

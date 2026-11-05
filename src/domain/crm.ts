@@ -87,6 +87,14 @@ export const PropertyCreate = z.object({
   accessNotes: z.string().optional(),
   isPrimary: z.boolean().optional(),
 });
+/** Partial update for PATCH /quotes/:id (pipeline drag-drop sets status). */
+export const QuoteUpdate = z.object({
+  status: QuoteStatus.optional(),
+  detail: z.string().nullable().optional(),
+  amountCents: z.number().int().nonnegative().optional(),
+  needsYou: z.boolean().optional(),
+});
+
 /** Partial update for PATCH /customers/:id/properties/:propertyId. */
 export const PropertyUpdate = z.object({
   label: z.string().nullable().optional(),
@@ -307,6 +315,7 @@ export type Plan = z.infer<typeof Plan>;
 export type PlanCreate = z.infer<typeof PlanCreate>;
 export type Quote = z.infer<typeof Quote>;
 export type QuoteCreate = z.infer<typeof QuoteCreate>;
+export type QuoteUpdate = z.infer<typeof QuoteUpdate>;
 export type Review = z.infer<typeof Review>;
 export type ReviewCreate = z.infer<typeof ReviewCreate>;
 export type Job = z.infer<typeof Job>;

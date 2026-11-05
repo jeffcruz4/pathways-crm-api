@@ -1,4 +1,3 @@
-import type { Pipeline } from "../domain/deal.js";
 import type { ConvoListItem, ConversationDetail } from "../domain/conversation.js";
 import type { CalendarWeek, Digest } from "../domain/calendar.js";
 
@@ -148,7 +147,12 @@ const _legacyPartners = [
 void _legacyCustomers;
 void _legacyPartners;
 
-export const pipeline: Pipeline = {
+/**
+ * Legacy sample pipeline. Only `summary.movedByCori` is still read (the live
+ * pipeline is assembled from quotes); the stage deals are kept as reference
+ * sample data and are intentionally not typed to the current `Deal` shape.
+ */
+export const pipeline = {
   summary: { openCount: 14, openValue: "$6,420", movedByCori: 9 },
   stages: [
     {

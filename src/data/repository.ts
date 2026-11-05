@@ -9,7 +9,7 @@ import type {
 import type { TeamMember, TeamMemberListItem, TeamMemberCreate, TeamStats } from "../domain/team-member.js";
 import type { CustomerStats } from "../domain/customer-stats.js";
 import type { SearchResults } from "../domain/search.js";
-import type { Pipeline } from "../domain/deal.js";
+import type { Pipeline, PipelineStats } from "../domain/deal.js";
 import type { ConvoListItem, ConversationDetail } from "../domain/conversation.js";
 import type { CalendarWeek, Digest } from "../domain/calendar.js";
 import type { Home } from "../domain/home.js";
@@ -23,6 +23,7 @@ import type {
   PlanCreate,
   Quote,
   QuoteCreate,
+  QuoteUpdate,
   Job,
   JobCreate,
   Review,
@@ -91,8 +92,12 @@ export interface Repository {
   // Global keyword search (all object types)
   search(query: string): Promise<SearchResults>;
 
+  // Quotes (pipeline card edits)
+  updateQuote(id: string, input: QuoteUpdate): Promise<Quote | undefined>;
+
   // Pipeline
   getPipeline(): Promise<Pipeline>;
+  getPipelineStats(): Promise<PipelineStats>;
 
   // Conversations
   listConversations(): Promise<ConvoListItem[]>;

@@ -9,9 +9,12 @@ import {
   assembleCustomerStats,
   assembleTeamStats,
   assemblePartnerHighlights,
+  assemblePipelineStats,
   teamMemberRollups,
   searchCorpus,
   partnerRelations,
+  PIPELINE_STAGES,
+  STATUS_TO_STAGE,
   mapContact,
   mapProperty,
   mapPlan,
@@ -36,7 +39,7 @@ import type {
 import type { TeamMember, TeamMemberListItem, TeamMemberCreate, TeamStats } from "../domain/team-member.js";
 import type { CustomerStats } from "../domain/customer-stats.js";
 import type { SearchResults } from "../domain/search.js";
-import type { Pipeline, PipelineStage } from "../domain/deal.js";
+import type { Pipeline, PipelineStage, PipelineStats } from "../domain/deal.js";
 import type { ConvoListItem, ConversationDetail } from "../domain/conversation.js";
 import type { CalendarWeek } from "../domain/calendar.js";
 import type {
@@ -49,6 +52,7 @@ import type {
   PlanCreate,
   Quote,
   QuoteCreate,
+  QuoteUpdate,
   Job,
   JobCreate,
   Review,
@@ -759,28 +763,45 @@ export class PostgresRepository implements Repository {
     );
   }
 
+  // ── Quotes: pipeline card edits (status via drag-drop, inline fields) ──
+  async updateQuote(id: string, input: QuoteUpdate): Promise<Quote | undefined> {
+    if (!isUuid(id)) return undefined;
+    const patch: Record<string, unknown> = { updatedAt: new Date() };
+    if (input.status !== undefined) {
+      patch.status = input.status;
+      // Stamp decidedAt when a quote reaches a terminal state.
+      if (input.status === "accepted" || input.status === "declined") patch.decidedAt = new Date();
+    }
+    if (input.detail !== undefined) patch.detail = input.detail;
+    if (input.amountCents !== undefined) patch.amountCents = input.amountCents;
+    if (input.needsYou !== undefined) patch.needsYou = input.needsYou;
+    const [row] = await this.db
+      .update(schema.quotes)
+      .set(patch)
+      .where(eq(schema.quotes.id, id))
+      .returning();
+    return row ? mapQuote(row) : undefined;
+  }
+
   // ── Pipeline = quotes grouped by status (design Q1) ──
   async getPipeline(): Promise<Pipeline> {
-    const rows = await this.db.select().from(schema.quotes);
-    // Map quote statuses onto the UI's pipeline stage buckets.
-    const stageMeta = seed.pipeline.stages.map((s) => ({ id: s.id, label: s.label, dot: s.dot }));
-    const statusToStage: Record<string, string> = {
-      draft: "new",
-      sent: "quote-sent",
-      "follow-up": "follow-up",
-      accepted: "booked",
-      declined: "booked",
-      expired: "new",
-    };
-    const stages: PipelineStage[] = stageMeta.map((meta) => ({
-      id: meta.id,
+    const [rows, customers] = await Promise.all([
+      this.db.select().from(schema.quotes),
+      this.db.select().from(schema.customers),
+    ]);
+    const nameById = new Map(customers.map((c) => [c.id, c.displayName]));
+    const stats = assemblePipelineStats(rows);
+    const stages: PipelineStage[] = PIPELINE_STAGES.map((meta) => ({
+      id: meta.id as PipelineStage["id"],
       label: meta.label,
       dot: meta.dot,
       deals: rows
-        .filter((q) => (statusToStage[q.status] ?? "new") === meta.id)
+        .filter((q) => !q.archivedAt && (STATUS_TO_STAGE[q.status] ?? "new") === meta.id)
         .map((q) => ({
           id: q.id,
-          stageId: meta.id,
+          stageId: meta.id as PipelineStage["id"],
+          customerId: q.customerId,
+          customerName: nameById.get(q.customerId) ?? "Customer",
           name: q.detail ?? "Quote",
           price: q.amountCents != null ? Math.round(q.amountCents / 100) : undefined,
           priceUnit: q.priceUnit === "per-visit" ? ("visit" as const) : ("flat" as const),
@@ -790,7 +811,19 @@ export class PostgresRepository implements Repository {
           needsYou: q.needsYou,
         })),
     }));
-    return { summary: seed.pipeline.summary, stages };
+    return {
+      summary: {
+        openCount: stats.openCount,
+        openValue: stats.openValue.display,
+        movedByCori: seed.pipeline.summary.movedByCori,
+      },
+      stages,
+    };
+  }
+
+  async getPipelineStats(): Promise<PipelineStats> {
+    const rows = await this.db.select().from(schema.quotes);
+    return assemblePipelineStats(rows);
   }
 
   // ── Conversations: not modeled in this schema; serve from seed ──
