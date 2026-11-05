@@ -85,11 +85,14 @@ resource "aws_cognito_user_pool" "this" {
 }
 
 # ── Role groups (map to the app's UserRole set) ──
+# Cognito group names cannot contain spaces (they must match
+# [\p{L}\p{M}\p{S}\p{N}\p{P}]+), so groups use space-free names. The app's
+# roleFromClaims normalizes these (e.g. "SystemAdmin" → "System Admin").
 resource "aws_cognito_user_group" "roles" {
-  for_each     = toset(["System Admin", "Team Member", "Partner", "Customer"])
+  for_each     = { SystemAdmin = "System Admin", TeamMember = "Team Member", Partner = "Partner", Customer = "Customer" }
   name         = each.key
   user_pool_id = aws_cognito_user_pool.this.id
-  description  = "Pathways role: ${each.key}"
+  description  = "Pathways role: ${each.value}"
 }
 
 # ── Public SPA app client (no secret; Authorization Code + PKCE) ──
