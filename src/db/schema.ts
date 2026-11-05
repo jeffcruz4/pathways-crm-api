@@ -528,3 +528,35 @@ export const userProfiles = pgTable(
     bySub: uniqueIndex("user_profiles_tenant_sub_uq").on(t.tenantId, t.sub),
   }),
 );
+
+// ───────────────── Notifications (the Notifications center) ─────────────────
+// Tenant-scoped inbox items. `type` drives the CTA color in the UI. `read` and
+// `saved` are user-toggled. A per-user `sub` column can be added later for a
+// personal (vs shared-team) inbox.
+export const notificationType = pgEnum("notification_type", [
+  "action",
+  "success",
+  "info",
+  "alert",
+]);
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: pk(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    type: notificationType("type").notNull().default("info"),
+    title: text("title").notNull(),
+    body: text("body").notNull().default(""),
+    read: boolean("read").notNull().default(false),
+    saved: boolean("saved").notNull().default(false),
+    ctaLabel: text("cta_label"),
+    ctaHref: text("cta_href"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => ({
+    byTenant: index("notifications_tenant_idx").on(t.tenantId, t.createdAt),
+  }),
+);

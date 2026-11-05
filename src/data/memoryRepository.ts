@@ -28,6 +28,8 @@ import {
   upcomingPartnerItems,
   assembleUserProfile,
   mergePreferences,
+  mapNotification,
+  assembleNotificationList,
   partnerDetail,
   type CustomerBundle,
 } from "./assemble.js";
@@ -44,6 +46,12 @@ import type {
 } from "../domain/partner.js";
 import type { TeamMember, TeamMemberListItem, TeamMemberCreate, TeamStats } from "../domain/team-member.js";
 import type { UserProfile, UserProfileUpdate, UserIdentity } from "../domain/user-profile.js";
+import type {
+  Notification,
+  NotificationUpdate,
+  NotificationFilter,
+  NotificationList,
+} from "../domain/notification.js";
 import type {
   Contact,
   ContactCreate,
@@ -81,6 +89,7 @@ type OfferingRow = InferSelectModel<typeof schema.serviceOfferings>;
 type AppointmentRow = InferSelectModel<typeof schema.appointments>;
 type InteractionRow = InferSelectModel<typeof schema.interactions>;
 type UserProfileRow = InferSelectModel<typeof schema.userProfiles>;
+type NotificationRow = InferSelectModel<typeof schema.notifications>;
 
 const nowTs = () => new Date();
 
@@ -104,6 +113,7 @@ export class MemoryRepository implements Repository {
   private appointments: AppointmentRow[] = [];
   private interactions: InteractionRow[] = [];
   private userProfiles: UserProfileRow[] = [];
+  private notifications: NotificationRow[] = [];
   private workerNames = new Map<string, string>();
   private readonly tenantId = rel.tenant.id!;
 
@@ -122,6 +132,7 @@ export class MemoryRepository implements Repository {
     this.appointments = rel.appointments.map((a) => this.fillAppointment(a));
     this.interactions = rel.interactions.map((i) => this.fillInteraction(i));
     this.userProfiles = rel.userProfiles.map((u) => this.fillUserProfile(u));
+    this.notifications = rel.notifications.map((n) => this.fillNotification(n));
     for (const e of rel.teamMembers) this.workerNames.set(e.id!, e.displayName);
     for (const p of rel.partners) this.workerNames.set(p.id!, p.displayName);
   }
@@ -395,6 +406,22 @@ export class MemoryRepository implements Repository {
       mobileNumber: u.mobileNumber ?? null,
       preferences: (u.preferences as Record<string, unknown>) ?? {},
       createdAt: nowTs(),
+      updatedAt: nowTs(),
+    };
+  }
+
+  private fillNotification(n: (typeof rel.notifications)[number]): NotificationRow {
+    return {
+      id: n.id ?? randomUUID(),
+      tenantId: n.tenantId,
+      type: n.type ?? "info",
+      title: n.title,
+      body: n.body ?? "",
+      read: n.read ?? false,
+      saved: n.saved ?? false,
+      ctaLabel: n.ctaLabel ?? null,
+      ctaHref: n.ctaHref ?? null,
+      createdAt: n.createdAt instanceof Date ? n.createdAt : n.createdAt ? new Date(n.createdAt as string) : nowTs(),
       updatedAt: nowTs(),
     };
   }
@@ -892,6 +919,25 @@ export class MemoryRepository implements Repository {
     }
     row.updatedAt = nowTs();
     return assembleUserProfile(identity, { id: this.tenantId, name: rel.tenant.name }, row);
+  }
+
+  // ── Notifications ──
+  async listNotifications(filter: NotificationFilter): Promise<NotificationList> {
+    return assembleNotificationList(this.notifications, filter);
+  }
+
+  async updateNotification(id: string, input: NotificationUpdate): Promise<Notification | undefined> {
+    const row = this.notifications.find((n) => n.id === id);
+    if (!row) return undefined;
+    if (input.read !== undefined) row.read = input.read;
+    if (input.saved !== undefined) row.saved = input.saved;
+    row.updatedAt = nowTs();
+    return mapNotification(row);
+  }
+
+  async markAllNotificationsRead(): Promise<NotificationList> {
+    for (const n of this.notifications) n.read = true;
+    return assembleNotificationList(this.notifications, "all");
   }
 
   async getPartnerHighlights(): Promise<PartnerHighlights> {

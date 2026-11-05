@@ -23,6 +23,7 @@ type TeamMemberIns = InferInsertModel<typeof schema.teamMembers>;
 type PartnerIns = InferInsertModel<typeof schema.partners>;
 type InteractionIns = InferInsertModel<typeof schema.interactions>;
 type UserProfileIns = InferInsertModel<typeof schema.userProfiles>;
+type NotificationIns = InferInsertModel<typeof schema.notifications>;
 
 // Stable UUIDs. The "entity" segment must be valid hex, so each entity gets a
 // hex code in the 3rd group (…-00XX-…) and the row number fills the last group.
@@ -216,4 +217,17 @@ export const appointments: InferInsertModel<typeof schema.appointments>[] = [
   { id: U("8c0b", 3), tenantId: TENANT, customerId: cid(1), propertyId: pid(1), quoteId: qid(1), kind: "quote-visit", status: "scheduled", title: "Tom Becker — walkthrough", detail: "Quote visit for deep clean", startsAt: daysFromNow(1), durationMin: 45 },
   // ── Partner sync (powers Partners → "Upcoming") ──
   { id: U("8c0b", 4), tenantId: TENANT, kind: "call", status: "scheduled", title: "SparkClean Crew — sync", detail: "Onboarding check-in", startsAt: daysFromNow(4), durationMin: 30, assigneeType: "partner", assignedPartnerId: nid(3) },
+];
+
+// Notifications center inbox. `type` drives the CTA color. A realistic mix of
+// action / success / info / alert, newest first, with a couple already read +
+// one saved so the filters have something to show.
+const nfid = (n: number) => U("8c0e", n);
+export const notifications: NotificationIns[] = [
+  { id: nfid(1), tenantId: TENANT, type: "action", title: "Quote needs your review", body: "The Porters' biweekly quote has been sitting in 'sent' for 6 days with two views and no reply. Cori suggests a gentle follow-up.", read: false, saved: false, ctaLabel: "Open pipeline", ctaHref: "/pipeline", createdAt: daysFromNow(0) },
+  { id: nfid(2), tenantId: TENANT, type: "success", title: "New 5-star review", body: "Gloria Hynes left a 5-star review for Maria Santos: “best the house has looked”.", read: false, saved: true, ctaLabel: "View team", ctaHref: "/team", createdAt: daysFromNow(0) },
+  { id: nfid(3), tenantId: TENANT, type: "alert", title: "Complaint logged", body: "A contractor arrived 30 minutes late to Gina Alvarez's move-out clean. Resolved with a discount — worth a personal follow-up.", read: false, saved: false, ctaLabel: "Open customer", ctaHref: "/customers", createdAt: daysFromNow(-1) },
+  { id: nfid(4), tenantId: TENANT, type: "info", title: "Cori enriched a profile", body: "Cori built Tom Becker's profile from a 4m 12s call: biweekly cleaning, 2,400 sq ft, two dogs, prefers Thursday afternoons.", read: true, saved: false, ctaLabel: "View customer", ctaHref: "/customers", createdAt: daysFromNow(-2) },
+  { id: nfid(5), tenantId: TENANT, type: "action", title: "Partner onboarding check-in", body: "SparkClean Crew's onboarding check-in is coming up in a few days. Confirm the time and scope.", read: false, saved: false, ctaLabel: "View partners", ctaHref: "/partners", createdAt: daysFromNow(-3) },
+  { id: nfid(6), tenantId: TENANT, type: "info", title: "Weekly digest ready", body: "11 open quotes, 29 jobs on the schedule, and 3 new leads this week. Tap through for the full breakdown.", read: true, saved: false, ctaLabel: null, ctaHref: null, createdAt: daysFromNow(-5) },
 ];

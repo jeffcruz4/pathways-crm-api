@@ -25,6 +25,7 @@ import type {
 } from "../domain/crm.js";
 import type { Partner, PartnerListItem, UpcomingPartnerItem } from "../domain/partner.js";
 import type { UserProfile, UserIdentity, UserPreferences } from "../domain/user-profile.js";
+import type { Notification, NotificationFilter, NotificationList } from "../domain/notification.js";
 
 type CustomerRow = InferSelectModel<typeof schema.customers>;
 type ContactRow = InferSelectModel<typeof schema.customerContacts>;
@@ -245,6 +246,43 @@ export function assembleUserProfile(
     preferences: mergePreferences(row?.preferences),
     updatedAt: (row?.updatedAt ?? new Date()).toISOString(),
   };
+}
+
+// ── Notifications ──
+
+type NotificationRow = InferSelectModel<typeof schema.notifications>;
+
+export function mapNotification(r: NotificationRow): Notification {
+  return {
+    id: r.id,
+    type: r.type,
+    title: r.title,
+    body: r.body,
+    read: r.read,
+    saved: r.saved,
+    createdAt: r.createdAt.toISOString(),
+    ctaLabel: r.ctaLabel ?? null,
+    ctaHref: r.ctaHref ?? null,
+  };
+}
+
+/**
+ * Build the notification list response for a filter. Rows come newest-first;
+ * `unreadCount` is always the full-inbox unread total (for the nav badge),
+ * independent of the filter.
+ */
+export function assembleNotificationList(
+  rows: NotificationRow[],
+  filter: NotificationFilter,
+): NotificationList {
+  const sorted = [...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  const unreadCount = sorted.filter((r) => !r.read).length;
+  const visible = sorted.filter((r) => {
+    if (filter === "unread") return !r.read;
+    if (filter === "saved") return r.saved;
+    return true;
+  });
+  return { items: visible.map(mapNotification), unreadCount };
 }
 
 export function mapContact(r: ContactRow): Contact {

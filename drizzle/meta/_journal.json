@@ -22,6 +22,13 @@
       "when": 1793854881226,
       "tag": "0002_secret_triathlon",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793855706840,
+      "tag": "0003_thin_nuke",
+      "breakpoints": true
     }
   ]
 }

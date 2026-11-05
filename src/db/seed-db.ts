@@ -27,11 +27,13 @@ async function main() {
   await db.delete(schema.teamMembers);
   await db.delete(schema.partners);
   await db.delete(schema.userProfiles);
+  await db.delete(schema.notifications);
   await db.delete(schema.tenants);
 
   // Insert parent → child.
   await db.insert(schema.tenants).values(rel.tenant);
   await db.insert(schema.userProfiles).values(rel.userProfiles);
+  await db.insert(schema.notifications).values(rel.notifications);
   await db.insert(schema.teamMembers).values(rel.teamMembers);
   await db.insert(schema.partners).values(rel.partners);
   await db.insert(schema.serviceOfferings).values(rel.serviceOfferings);
@@ -51,7 +53,7 @@ async function main() {
       `${rel.jobs.length} jobs, ${rel.reviews.length} reviews, ${rel.appointments.length} appointments, ` +
       `${rel.interactions.length} interactions, ` +
       `${rel.teamMembers.length} team members, ${rel.partners.length} partners, ` +
-      `${rel.userProfiles.length} user profiles.`,
+      `${rel.userProfiles.length} user profiles, ${rel.notifications.length} notifications.`,
   );
   await sql.end();
 }

@@ -12,8 +12,22 @@ Stood the API up from a read-only `/home` scaffold to a relational,
 multi-tenant CRM backend with create endpoints, a dedicated RDS instance, and a
 turnkey deploy + local-dev story.
 
-### #27 · me: user profile endpoints (Settings screen)
+### #28 · notifications center endpoints
 *(pending)*
+- New `notifications` table (tenant-scoped inbox: `type` action/success/info/
+  alert, title, body, `read`, `saved`, optional CTA label/href). Migration
+  `0003_thin_nuke.sql`.
+- `GET /notifications?filter=all|unread|saved` → `{ items, unreadCount }`
+  (newest-first; `unreadCount` is always the full-inbox total for the nav
+  badge). `PATCH /notifications/:id` toggles `read`/`saved` (404 on unknown
+  id). `POST /notifications/read-all` marks everything read.
+- `Notification` domain + `mapNotification` / `assembleNotificationList` pure
+  helpers; both backends implement the three repo methods.
+- Seed: 6 notifications (a realistic action/success/alert/info mix, 2 read,
+  1 saved) with CTA routes into the app.
+
+### #27 · me: user profile endpoints (Settings screen)
+*(merged)*
 - New `user_profiles` table (keyed by the Cognito `sub`, one row per tenant+sub)
   holding only the editable account fields: first/last name, work + mobile
   numbers, and a `preferences` JSON (theme, email/SMS notifications, preferred
