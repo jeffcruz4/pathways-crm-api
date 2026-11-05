@@ -45,6 +45,27 @@ output "migrator_subnet_ids" {
   value = data.aws_subnets.private.ids
 }
 
+# ── Cognito (drop these into apps/web/public/config.json → auth) ──
+output "cognito_issuer" {
+  value       = module.cognito.issuer
+  description = "config.json auth.issuer"
+}
+
+output "cognito_client_id" {
+  value       = module.cognito.user_pool_client_id
+  description = "config.json auth.clientId"
+}
+
+output "cognito_hosted_ui_domain" {
+  value       = module.cognito.hosted_ui_domain
+  description = "config.json auth.cognitoDomain"
+}
+
+output "cognito_user_pool_id" {
+  value       = module.cognito.user_pool_id
+  description = "Cognito user pool id (for the AWS console / CLI)."
+}
+
 output "gha_deploy_role_arn" {
   value       = module.github_oidc.deploy_role_arn
   description = "ARN of the stack-created deploy role, or null when create_github_oidc_role=false (you're reusing an existing role — set its ARN as AWS_ROLE_ARN yourself)."

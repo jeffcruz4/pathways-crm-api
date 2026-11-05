@@ -87,6 +87,20 @@ module "migrator" {
   tags = local.common_tags
 }
 
+# ── Cognito user pool + SPA client (auth for the web app) ──
+module "cognito" {
+  source = "../../modules/cognito"
+
+  name_prefix             = var.name_prefix
+  hosted_ui_domain_prefix = var.cognito_hosted_ui_domain_prefix
+  callback_urls           = var.cognito_callback_urls
+  logout_urls             = var.cognito_logout_urls
+  mfa_configuration       = var.cognito_mfa_configuration
+  admin_create_user_only  = var.cognito_admin_create_user_only
+
+  tags = local.common_tags
+}
+
 # ── GitHub OIDC deploy role (push image + run migrator from CI) ──
 # Optional: default off, since an existing deploy role is reused. Flip
 # create_github_oidc_role=true to have this stack manage its own least-privilege

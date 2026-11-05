@@ -12,8 +12,23 @@ Stood the API up from a read-only `/home` scaffold to a relational,
 multi-tenant CRM backend with create endpoints, a dedicated RDS instance, and a
 turnkey deploy + local-dev story.
 
-### #24 · pipeline: quote status update + pipeline stats
+### #25 · infra: Cognito user pool (Terraform)
 *(pending)*
+- New `modules/cognito`: a user pool (email sign-in, strong password policy,
+  verified-email recovery, invite-only by default), four role groups
+  (System Admin / Team Member / Partner / Customer), a **public** SPA app client
+  (no secret; Authorization Code + PKCE; scopes `openid email profile`) matching
+  `packages/auth`'s `OidcClient`, and a hosted-UI domain.
+- Wired into `environments/dev` as `module "cognito"` with knobs for the
+  hosted-UI domain prefix, callback/logout URLs, MFA, and self-sign-up. New
+  stack outputs (`cognito_issuer`, `cognito_client_id`,
+  `cognito_hosted_ui_domain`, `cognito_user_pool_id`) drop straight into
+  `apps/web/public/config.json` → `auth`.
+- Infra only — no pool is created until someone runs `terraform apply`. `fmt`
+  + `validate` clean on terraform 1.9.5 (CI's version).
+
+### #24 · pipeline: quote status update + pipeline stats
+*(merged)*
 - `QuoteUpdate` + `PATCH /quotes/:id` — drag-and-drop sets a quote's status
   (stamps `decidedAt` on accepted/declined); also supports inline detail /
   amount / needs-you edits. 404 on unknown id, 400 on a bad status.
