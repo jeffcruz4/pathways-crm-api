@@ -20,9 +20,17 @@ name: Deploy (terraform apply)
 on:
   workflow_dispatch:
     inputs:
-      image_tag:
-        description: "Image tag the migrator task runs (e.g. dev or a commit SHA)"
+      target:
+        description: "What to apply"
         required: true
+        default: "cognito-only"
+        type: choice
+        options:
+          - cognito-only
+          - full-stack
+      image_tag:
+        description: "Image tag the migrator task runs (full-stack only; e.g. dev or a commit SHA)"
+        required: false
         default: "dev"
 
 permissions:
@@ -55,9 +63,19 @@ jobs:
       - name: Terraform plan
         working-directory: ${{ env.TF_DIR }}
         run: |
-          terraform plan -input=false \
-            -var="image_tag=${{ inputs.image_tag }}" \
-            -out=tfplan
+          # cognito-only: create JUST the user pool (no RDS/ECR/migrator) so we
+          # can stand up auth in isolation and cheaply. full-stack: the whole
+          # dev stack (needs an image_tag for the migrator task).
+          if [ "${{ inputs.target }}" = "cognito-only" ]; then
+            terraform plan -input=false \
+              -target=module.cognito \
+              -var="image_tag=${{ inputs.image_tag }}" \
+              -out=tfplan
+          else
+            terraform plan -input=false \
+              -var="image_tag=${{ inputs.image_tag }}" \
+              -out=tfplan
+          fi
       - name: Upload plan
         uses: actions/upload-artifact@v4
         with:
@@ -102,5 +120,12 @@ jobs:
             echo "### Deploy outputs"
             echo '```'
             terraform output
+            echo '```'
+            echo ""
+            echo "### Cognito → copy into apps/web/public/config.json auth"
+            echo '```json'
+            echo "\"issuer\":        $(terraform output -raw cognito_issuer 2>/dev/null || echo 'n/a'),"
+            echo "\"clientId\":      $(terraform output -raw cognito_client_id 2>/dev/null || echo 'n/a'),"
+            echo "\"cognitoDomain\": $(terraform output -raw cognito_hosted_ui_domain 2>/dev/null || echo 'n/a')"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"

@@ -12,8 +12,18 @@ Stood the API up from a read-only `/home` scaffold to a relational,
 multi-tenant CRM backend with create endpoints, a dedicated RDS instance, and a
 turnkey deploy + local-dev story.
 
-### #28 · notifications center endpoints
+### #29 · deploy: cognito-only target in the deploy workflow
 *(pending)*
+- `deploy.yml` gains a `target` choice input (`cognito-only` | `full-stack`).
+  `cognito-only` runs `terraform plan/apply -target=module.cognito`, so CI can
+  stand up JUST the user pool (no RDS/ECR/migrator) through the existing
+  OIDC + approval-gated (`production` environment) flow. `image_tag` is now
+  optional (only used by the full stack).
+- The apply job's summary now prints the Cognito outputs (`issuer`, `clientId`,
+  `cognitoDomain`) ready to paste into `apps/web/public/config.json`.
+
+### #28 · notifications center endpoints
+*(merged)*
 - New `notifications` table (tenant-scoped inbox: `type` action/success/info/
   alert, title, body, `read`, `saved`, optional CTA label/href). Migration
   `0003_thin_nuke.sql`.
