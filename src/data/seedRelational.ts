@@ -22,6 +22,7 @@ type ReviewIns = InferInsertModel<typeof schema.jobReviews>;
 type TeamMemberIns = InferInsertModel<typeof schema.teamMembers>;
 type PartnerIns = InferInsertModel<typeof schema.partners>;
 type InteractionIns = InferInsertModel<typeof schema.interactions>;
+type UserProfileIns = InferInsertModel<typeof schema.userProfiles>;
 
 // Stable UUIDs. The "entity" segment must be valid hex, so each entity gets a
 // hex code in the 3rd group (…-00XX-…) and the row number fills the last group.
@@ -45,6 +46,23 @@ const now = Date.now();
 const daysFromNow = (d: number) => new Date(now + d * DAY);
 
 export const tenant: TenantIns = { id: TENANT, name: "Corvia Cleaning", slug: "corvia" };
+
+// Stable dev identity used before the Cognito pool exists (preview mode). The
+// API's /me route falls back to this sub when there's no verified token.
+export const DEV_USER_SUB = "dev-user-0001";
+
+export const userProfiles: UserProfileIns[] = [
+  {
+    id: U("8c0d", 1),
+    tenantId: TENANT,
+    sub: DEV_USER_SUB,
+    firstName: "Joe",
+    lastName: "Garrity",
+    workNumber: "+18565550100",
+    mobileNumber: "+18565550101",
+    preferences: { theme: "system", emailNotifications: true, smsNotifications: false, preferredContact: "email" },
+  },
+];
 
 export const teamMembers: TeamMemberIns[] = [
   { id: eid(1), tenantId: TENANT, slug: "maria-santos", displayName: "Maria Santos", email: "maria@corvia.example", status: "active", employmentType: "full-time", skills: ["standard", "deep"], homeBase: "Swedesboro" },

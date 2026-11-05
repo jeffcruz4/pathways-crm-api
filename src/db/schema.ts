@@ -503,3 +503,28 @@ export const interactions = pgTable(
     byOccurred: index("interactions_occurred_idx").on(t.tenantId, t.occurredAt),
   }),
 );
+
+// ───────────────── User profiles (editable account fields) ─────────────────
+// Keyed by the Cognito `sub` (the stable account id). Holds only the fields a
+// user edits on the Settings screen; identity (email, name, role) comes from
+// the ID-token claims, not this table. One row per (tenant, sub).
+export const userProfiles = pgTable(
+  "user_profiles",
+  {
+    id: pk(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    sub: text("sub").notNull(),
+    firstName: text("first_name"),
+    lastName: text("last_name"),
+    workNumber: text("work_number"),
+    mobileNumber: text("mobile_number"),
+    preferences: jsonb("preferences").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => ({
+    bySub: uniqueIndex("user_profiles_tenant_sub_uq").on(t.tenantId, t.sub),
+  }),
+);

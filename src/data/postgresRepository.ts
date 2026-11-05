@@ -27,6 +27,8 @@ import {
   partnerListItem,
   partnerDetail,
   upcomingPartnerItems,
+  assembleUserProfile,
+  mergePreferences,
   type CustomerBundle,
 } from "./assemble.js";
 import type { Customer, CustomerListItem, CustomerCreate, CustomerUpdate } from "../domain/customer.js";
@@ -39,6 +41,7 @@ import type {
   UpcomingPartnerItem,
 } from "../domain/partner.js";
 import type { TeamMember, TeamMemberListItem, TeamMemberCreate, TeamStats } from "../domain/team-member.js";
+import type { UserProfile, UserProfileUpdate, UserIdentity } from "../domain/user-profile.js";
 import type { CustomerStats } from "../domain/customer-stats.js";
 import type { SearchResults } from "../domain/search.js";
 import type { Pipeline, PipelineStage, PipelineStats } from "../domain/deal.js";
@@ -698,6 +701,63 @@ export class PostgresRepository implements Repository {
       this.db.select().from(schema.customers),
     ]);
     return assembleTeamStats(teamMembers, jobs, reviews, customers);
+  }
+
+  // ── Current user (settings) ──
+  private async tenantRow() {
+    const [t] = await this.db.select().from(schema.tenants).limit(1);
+    if (t) return t;
+    const [created] = await this.db
+      .insert(schema.tenants)
+      .values({ name: "Default", slug: "default" })
+      .returning();
+    return created;
+  }
+
+  async getMyProfile(identity: UserIdentity): Promise<UserProfile> {
+    const tenant = await this.tenantRow();
+    const [row] = await this.db
+      .select()
+      .from(schema.userProfiles)
+      .where(and(eq(schema.userProfiles.tenantId, tenant.id), eq(schema.userProfiles.sub, identity.sub)));
+    return assembleUserProfile(identity, tenant, row);
+  }
+
+  async updateMyProfile(identity: UserIdentity, input: UserProfileUpdate): Promise<UserProfile> {
+    const tenant = await this.tenantRow();
+    const [existing] = await this.db
+      .select()
+      .from(schema.userProfiles)
+      .where(and(eq(schema.userProfiles.tenantId, tenant.id), eq(schema.userProfiles.sub, identity.sub)));
+
+    const mergedPrefs = input.preferences
+      ? { ...mergePreferences(existing?.preferences), ...input.preferences }
+      : (existing?.preferences ?? {});
+
+    const patch = {
+      firstName: input.firstName !== undefined ? input.firstName : (existing?.firstName ?? null),
+      lastName: input.lastName !== undefined ? input.lastName : (existing?.lastName ?? null),
+      workNumber: input.workNumber !== undefined ? input.workNumber : (existing?.workNumber ?? null),
+      mobileNumber:
+        input.mobileNumber !== undefined ? input.mobileNumber : (existing?.mobileNumber ?? null),
+      preferences: mergedPrefs as Record<string, unknown>,
+      updatedAt: new Date(),
+    };
+
+    let row: InferSelectModel<typeof schema.userProfiles>;
+    if (existing) {
+      [row] = await this.db
+        .update(schema.userProfiles)
+        .set(patch)
+        .where(eq(schema.userProfiles.id, existing.id))
+        .returning();
+    } else {
+      [row] = await this.db
+        .insert(schema.userProfiles)
+        .values({ tenantId: tenant.id, sub: identity.sub, ...patch })
+        .returning();
+    }
+    return assembleUserProfile(identity, tenant, row);
   }
 
   async getPartnerHighlights(): Promise<PartnerHighlights> {

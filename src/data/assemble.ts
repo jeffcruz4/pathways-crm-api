@@ -24,6 +24,7 @@ import type {
   Interaction,
 } from "../domain/crm.js";
 import type { Partner, PartnerListItem, UpcomingPartnerItem } from "../domain/partner.js";
+import type { UserProfile, UserIdentity, UserPreferences } from "../domain/user-profile.js";
 
 type CustomerRow = InferSelectModel<typeof schema.customers>;
 type ContactRow = InferSelectModel<typeof schema.customerContacts>;
@@ -193,6 +194,57 @@ export function upcomingPartnerItems(
   }
 
   return items.sort((x, y) => x.when.localeCompare(y.when));
+}
+
+// ── User profile (current user; identity from claims + editable DB row) ──
+
+type UserProfileRow = InferSelectModel<typeof schema.userProfiles>;
+type TenantRow = InferSelectModel<typeof schema.tenants>;
+
+const DEFAULT_PREFERENCES: UserPreferences = {
+  theme: "system",
+  emailNotifications: true,
+  smsNotifications: false,
+  preferredContact: "email",
+};
+
+/** Merge stored preference JSON over the defaults (tolerates partial/legacy rows). */
+export function mergePreferences(stored: Record<string, unknown> | null | undefined): UserPreferences {
+  const s = stored ?? {};
+  const pick = <K extends keyof UserPreferences>(k: K): UserPreferences[K] =>
+    (s[k] as UserPreferences[K]) ?? DEFAULT_PREFERENCES[k];
+  return {
+    theme: pick("theme"),
+    emailNotifications: pick("emailNotifications"),
+    smsNotifications: pick("smsNotifications"),
+    preferredContact: pick("preferredContact"),
+  };
+}
+
+/**
+ * Assemble the current user's profile: identity (sub/email/name/role) comes
+ * from the ID-token claims, tenancy from the tenant row, and the editable
+ * fields from the user_profiles row (may be absent → nulls + defaults).
+ */
+export function assembleUserProfile(
+  identity: UserIdentity,
+  tenant: Pick<TenantRow, "id" | "name">,
+  row: UserProfileRow | undefined,
+): UserProfile {
+  return {
+    sub: identity.sub,
+    email: identity.email,
+    name: identity.name,
+    role: identity.role,
+    tenantId: tenant.id,
+    tenantName: tenant.name,
+    firstName: row?.firstName ?? null,
+    lastName: row?.lastName ?? null,
+    workNumber: row?.workNumber ?? null,
+    mobileNumber: row?.mobileNumber ?? null,
+    preferences: mergePreferences(row?.preferences),
+    updatedAt: (row?.updatedAt ?? new Date()).toISOString(),
+  };
 }
 
 export function mapContact(r: ContactRow): Contact {
