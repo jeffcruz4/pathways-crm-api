@@ -123,7 +123,26 @@ export const PartnerHighlights = z.object({
   producingPartners: z.number().int(),
 });
 
+/**
+ * An upcoming engagement with a partner — a future job the partner is assigned
+ * to cover, or a future appointment with the partner as assignee. Derived on
+ * read from jobs.scheduledStart / appointments.startsAt where
+ * assignedPartnerId is set and the date is in the future (design Q6).
+ */
+export const UpcomingPartnerItem = z.object({
+  id: z.string(),
+  partnerId: z.string(),
+  partnerName: z.string(),
+  /** ISO timestamp the engagement starts. */
+  when: z.string(),
+  /** Short human label, e.g. "Deep clean" or "Onboarding check-in". */
+  label: z.string(),
+  /** Which table it came from. */
+  source: z.enum(["job", "appointment"]),
+});
+
 export type Partner = z.infer<typeof Partner>;
+export type UpcomingPartnerItem = z.infer<typeof UpcomingPartnerItem>;
 export type PartnerSpotlight = z.infer<typeof PartnerSpotlight>;
 export type PartnerHighlights = z.infer<typeof PartnerHighlights>;
 export type PartnerCreate = z.infer<typeof PartnerCreate>;
