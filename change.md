@@ -12,8 +12,26 @@ Stood the API up from a read-only `/home` scaffold to a relational,
 multi-tenant CRM backend with create endpoints, a dedicated RDS instance, and a
 turnkey deploy + local-dev story.
 
-### #26 · partners: upcoming engagements endpoint
+### #27 · me: user profile endpoints (Settings screen)
 *(pending)*
+- New `user_profiles` table (keyed by the Cognito `sub`, one row per tenant+sub)
+  holding only the editable account fields: first/last name, work + mobile
+  numbers, and a `preferences` JSON (theme, email/SMS notifications, preferred
+  contact). Migration `0002_secret_triathlon.sql`.
+- `GET /me` + `PATCH /me` + `UserProfile` / `UserProfileUpdate` domain. Identity
+  (sub, email, name, role, tenancy) comes from the auth claims; the editable
+  fields come from `user_profiles` (absent → nulls + preference defaults).
+  `assembleUserProfile` is a shared pure helper; both backends implement
+  `getMyProfile` / `updateMyProfile`.
+- Identity resolution (`routes/me.ts`) reads the **unverified** JWT payload of a
+  `Bearer` token when present (role via `cognito:groups` / `custom:role`), and
+  falls back to a stable dev identity (`DEV_USER_SUB`) so the preview works
+  before the pool exists. Token verification will later slot in as a preHandler
+  without changing the repo contract.
+- Seed: one dev profile (Joe Garrity, Team Member). Now 1 user profile.
+
+### #26 · partners: upcoming engagements endpoint
+*(merged)*
 - `GET /partners/upcoming` + `UpcomingPartnerItem` ({ id, partnerId,
   partnerName, when, label, source }): future partner-assigned jobs +
   appointments, merged and sorted soonest-first. Skips cancelled/completed/

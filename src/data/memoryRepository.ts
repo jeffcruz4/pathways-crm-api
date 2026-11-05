@@ -26,6 +26,8 @@ import {
   mapInteraction,
   partnerListItem,
   upcomingPartnerItems,
+  assembleUserProfile,
+  mergePreferences,
   partnerDetail,
   type CustomerBundle,
 } from "./assemble.js";
@@ -41,6 +43,7 @@ import type {
   UpcomingPartnerItem,
 } from "../domain/partner.js";
 import type { TeamMember, TeamMemberListItem, TeamMemberCreate, TeamStats } from "../domain/team-member.js";
+import type { UserProfile, UserProfileUpdate, UserIdentity } from "../domain/user-profile.js";
 import type {
   Contact,
   ContactCreate,
@@ -77,6 +80,7 @@ type PartnerRow = InferSelectModel<typeof schema.partners>;
 type OfferingRow = InferSelectModel<typeof schema.serviceOfferings>;
 type AppointmentRow = InferSelectModel<typeof schema.appointments>;
 type InteractionRow = InferSelectModel<typeof schema.interactions>;
+type UserProfileRow = InferSelectModel<typeof schema.userProfiles>;
 
 const nowTs = () => new Date();
 
@@ -99,6 +103,7 @@ export class MemoryRepository implements Repository {
   private offerings: OfferingRow[] = [];
   private appointments: AppointmentRow[] = [];
   private interactions: InteractionRow[] = [];
+  private userProfiles: UserProfileRow[] = [];
   private workerNames = new Map<string, string>();
   private readonly tenantId = rel.tenant.id!;
 
@@ -116,6 +121,7 @@ export class MemoryRepository implements Repository {
     this.reviews = rel.reviews.map((r) => this.fillReview(r));
     this.appointments = rel.appointments.map((a) => this.fillAppointment(a));
     this.interactions = rel.interactions.map((i) => this.fillInteraction(i));
+    this.userProfiles = rel.userProfiles.map((u) => this.fillUserProfile(u));
     for (const e of rel.teamMembers) this.workerNames.set(e.id!, e.displayName);
     for (const p of rel.partners) this.workerNames.set(p.id!, p.displayName);
   }
@@ -375,6 +381,21 @@ export class MemoryRepository implements Repository {
       createdAt: nowTs(),
       updatedAt: nowTs(),
       archivedAt: null,
+    };
+  }
+
+  private fillUserProfile(u: (typeof rel.userProfiles)[number]): UserProfileRow {
+    return {
+      id: u.id ?? randomUUID(),
+      tenantId: u.tenantId,
+      sub: u.sub,
+      firstName: u.firstName ?? null,
+      lastName: u.lastName ?? null,
+      workNumber: u.workNumber ?? null,
+      mobileNumber: u.mobileNumber ?? null,
+      preferences: (u.preferences as Record<string, unknown>) ?? {},
+      createdAt: nowTs(),
+      updatedAt: nowTs(),
     };
   }
 
@@ -844,6 +865,33 @@ export class MemoryRepository implements Repository {
 
   async getTeamStats(): Promise<TeamStats> {
     return assembleTeamStats(this.teamMembers, this.jobs, this.reviews, this.customers);
+  }
+
+  // ── Current user (settings) ──
+  async getMyProfile(identity: UserIdentity): Promise<UserProfile> {
+    const row = this.userProfiles.find(
+      (u) => u.tenantId === this.tenantId && u.sub === identity.sub,
+    );
+    return assembleUserProfile(identity, { id: this.tenantId, name: rel.tenant.name }, row);
+  }
+
+  async updateMyProfile(identity: UserIdentity, input: UserProfileUpdate): Promise<UserProfile> {
+    let row = this.userProfiles.find(
+      (u) => u.tenantId === this.tenantId && u.sub === identity.sub,
+    );
+    if (!row) {
+      row = this.fillUserProfile({ tenantId: this.tenantId, sub: identity.sub });
+      this.userProfiles.push(row);
+    }
+    if (input.firstName !== undefined) row.firstName = input.firstName;
+    if (input.lastName !== undefined) row.lastName = input.lastName;
+    if (input.workNumber !== undefined) row.workNumber = input.workNumber;
+    if (input.mobileNumber !== undefined) row.mobileNumber = input.mobileNumber;
+    if (input.preferences) {
+      row.preferences = { ...mergePreferences(row.preferences), ...input.preferences };
+    }
+    row.updatedAt = nowTs();
+    return assembleUserProfile(identity, { id: this.tenantId, name: rel.tenant.name }, row);
   }
 
   async getPartnerHighlights(): Promise<PartnerHighlights> {
