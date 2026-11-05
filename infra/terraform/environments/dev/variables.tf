@@ -75,6 +75,37 @@ variable "create_github_oidc_role" {
   default = false
 }
 
+# ── Cognito (auth) ──
+# Globally-unique hosted-UI domain prefix. Full domain:
+# https://<prefix>.auth.<region>.amazoncognito.com
+variable "cognito_hosted_ui_domain_prefix" {
+  type    = string
+  default = "pathways-cdp-dev"
+}
+
+# Allowed OAuth callback + sign-out URLs. Include the deployed app origin(s)
+# alongside localhost for dev.
+variable "cognito_callback_urls" {
+  type    = list(string)
+  default = ["http://localhost:5173/callback"]
+}
+
+variable "cognito_logout_urls" {
+  type    = list(string)
+  default = ["http://localhost:5173/"]
+}
+
+variable "cognito_mfa_configuration" {
+  type    = string
+  default = "OFF"
+}
+
+# Internal tool → invite-only by default (no public self sign-up).
+variable "cognito_admin_create_user_only" {
+  type    = bool
+  default = true
+}
+
 # ── Sizing ──
 variable "instance_class" {
   type    = string
