@@ -12,8 +12,20 @@ Stood the API up from a read-only `/home` scaffold to a relational,
 multi-tenant CRM backend with create endpoints, a dedicated RDS instance, and a
 turnkey deploy + local-dev story.
 
-### #29 · deploy: cognito-only target in the deploy workflow
+### #30 · auth: live Cognito pool + next-steps doc
 *(pending)*
+- Applied the Cognito user pool via the `cognito-only` deploy workflow (pool
+  `us-east-1_cnrU8BdrT`, client `4hn20jrmnnu19cabp4tv0fqhbf`, hosted-UI
+  `pathways-cdp-dev`, groups SystemAdmin/TeamMember/Partner/Customer). Wired the
+  live values into the UI's (gitignored) local `config.json`.
+- Added `NEXT-STEPS-AUTH.md` — the hand-off doc: live pool values, the
+  admin-user creation commands (invite or set-password + add to SystemAdmin),
+  local-dev login walkthrough, how to register more callback URLs, how deployed
+  envs get config, the agent CLI permission note, and follow-ups (MFA, token
+  lifetimes, /me verification).
+
+### #29 · deploy: cognito-only target in the deploy workflow
+*(merged)*
 - `deploy.yml` gains a `target` choice input (`cognito-only` | `full-stack`).
   `cognito-only` runs `terraform plan/apply -target=module.cognito`, so CI can
   stand up JUST the user pool (no RDS/ECR/migrator) through the existing
