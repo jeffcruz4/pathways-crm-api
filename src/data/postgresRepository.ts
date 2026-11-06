@@ -404,6 +404,22 @@ export class PostgresRepository implements Repository {
   async addProperty(customerId: string, input: PropertyCreate): Promise<Property | undefined> {
     const c = await this.resolveCustomer(customerId);
     if (!c) return undefined;
+    // A customer has at most one primary property. If this one is primary,
+    // demote the rest first; if it's the customer's first property, default it
+    // to primary.
+    const existing = await this.db
+      .select({ id: schema.properties.id })
+      .from(schema.properties)
+      .where(eq(schema.properties.customerId, c.id));
+    let isPrimary = input.isPrimary ?? false;
+    if (isPrimary) {
+      await this.db
+        .update(schema.properties)
+        .set({ isPrimary: false, updatedAt: new Date() })
+        .where(and(eq(schema.properties.customerId, c.id), eq(schema.properties.isPrimary, true)));
+    } else if (existing.length === 0) {
+      isPrimary = true;
+    }
     const [row] = await this.db
       .insert(schema.properties)
       .values({
@@ -421,7 +437,7 @@ export class PostgresRepository implements Repository {
         bathrooms: input.bathrooms,
         squareFeet: input.squareFeet,
         accessNotes: input.accessNotes,
-        isPrimary: input.isPrimary ?? false,
+        isPrimary,
       })
       .returning();
     return mapProperty(row);
