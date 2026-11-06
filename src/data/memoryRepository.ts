@@ -33,6 +33,7 @@ import {
   mergePreferences,
   mapNotification,
   assembleNotificationList,
+  mapTask,
   partnerDetail,
   type CustomerBundle,
 } from "./assemble.js";
@@ -78,6 +79,7 @@ import type {
   Interaction,
   InteractionCreate,
 } from "../domain/crm.js";
+import type { Task, TaskCreate, TaskUpdate } from "../domain/task.js";
 
 type CustomerRow = InferSelectModel<typeof schema.customers>;
 type ContactRow = InferSelectModel<typeof schema.customerContacts>;
@@ -93,6 +95,7 @@ type AppointmentRow = InferSelectModel<typeof schema.appointments>;
 type InteractionRow = InferSelectModel<typeof schema.interactions>;
 type UserProfileRow = InferSelectModel<typeof schema.userProfiles>;
 type NotificationRow = InferSelectModel<typeof schema.notifications>;
+type TaskRow = InferSelectModel<typeof schema.tasks>;
 
 const nowTs = () => new Date();
 
@@ -117,6 +120,7 @@ export class MemoryRepository implements Repository {
   private interactions: InteractionRow[] = [];
   private userProfiles: UserProfileRow[] = [];
   private notifications: NotificationRow[] = [];
+  private tasks: TaskRow[] = [];
   private workerNames = new Map<string, string>();
   private readonly tenantId = rel.tenant.id!;
 
@@ -136,6 +140,7 @@ export class MemoryRepository implements Repository {
     this.interactions = rel.interactions.map((i) => this.fillInteraction(i));
     this.userProfiles = rel.userProfiles.map((u) => this.fillUserProfile(u));
     this.notifications = rel.notifications.map((n) => this.fillNotification(n));
+    this.tasks = rel.tasks.map((t) => this.fillTask(t));
     for (const e of rel.teamMembers) this.workerNames.set(e.id!, e.displayName);
     for (const p of rel.partners) this.workerNames.set(p.id!, p.displayName);
   }
@@ -431,6 +436,23 @@ export class MemoryRepository implements Repository {
       updatedAt: nowTs(),
     };
   }
+  private fillTask(t: (typeof rel.tasks)[number]): TaskRow {
+    return {
+      id: t.id ?? randomUUID(),
+      tenantId: t.tenantId,
+      title: t.title,
+      detail: t.detail ?? null,
+      status: t.status ?? "open",
+      bucket: t.bucket ?? "today",
+      relatedType: t.relatedType ?? null,
+      relatedId: t.relatedId ?? null,
+      completionComment: t.completionComment ?? null,
+      completedAt: t.completedAt ?? null,
+      createdAt: t.createdAt instanceof Date ? t.createdAt : nowTs(),
+      updatedAt: nowTs(),
+      archivedAt: null,
+    };
+  }
 
   private find(idOrSlug: string): CustomerRow | undefined {
     return this.customers.find((c) => c.id === idOrSlug || c.slug === idOrSlug);
@@ -493,6 +515,47 @@ export class MemoryRepository implements Repository {
           reviewByJob.get(j.id),
         );
       });
+  }
+
+  // ── Tasks ──
+  private taskNameMaps() {
+    const customerName = new Map(this.customers.map((c) => [c.id, c.displayName]));
+    return { customerName, workerName: this.workerNames };
+  }
+  async listTasks(): Promise<Task[]> {
+    const { customerName, workerName } = this.taskNameMaps();
+    return this.tasks
+      .filter((t) => !t.archivedAt)
+      .sort((a, z) => z.createdAt.getTime() - a.createdAt.getTime())
+      .map((t) => mapTask(t, customerName, workerName));
+  }
+  async createTask(input: TaskCreate): Promise<Task> {
+    const row = this.fillTask({
+      tenantId: this.tenantId,
+      title: input.title,
+      detail: input.detail,
+      bucket: input.bucket ?? "today",
+      relatedType: input.relatedType,
+      relatedId: input.relatedId,
+    });
+    this.tasks.push(row);
+    const { customerName, workerName } = this.taskNameMaps();
+    return mapTask(row, customerName, workerName);
+  }
+  async updateTask(id: string, input: TaskUpdate): Promise<Task | undefined> {
+    const row = this.tasks.find((t) => t.id === id && !t.archivedAt);
+    if (!row) return undefined;
+    if (input.title !== undefined) row.title = input.title;
+    if (input.detail !== undefined) row.detail = input.detail;
+    if (input.bucket !== undefined) row.bucket = input.bucket;
+    if (input.completionComment !== undefined) row.completionComment = input.completionComment;
+    if (input.status !== undefined) {
+      row.status = input.status;
+      row.completedAt = input.status === "done" ? nowTs() : null;
+    }
+    row.updatedAt = nowTs();
+    const { customerName, workerName } = this.taskNameMaps();
+    return mapTask(row, customerName, workerName);
   }
 
   // ── Customers ──

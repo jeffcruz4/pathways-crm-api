@@ -252,6 +252,40 @@ export function assembleUserProfile(
 
 type NotificationRow = InferSelectModel<typeof schema.notifications>;
 
+// ── Tasks ──
+
+type TaskRow = InferSelectModel<typeof schema.tasks>;
+
+/**
+ * Map a task row to the domain Task, resolving the related entity's display
+ * name. Pure: callers pass name maps for customers + workers (team/partners).
+ */
+export function mapTask(
+  r: TaskRow,
+  customerName: Map<string, string>,
+  workerName: Map<string, string>,
+): import("../domain/task.js").Task {
+  let related: import("../domain/task.js").Task["related"] = null;
+  if (r.relatedType && r.relatedId) {
+    const name =
+      r.relatedType === "customer"
+        ? customerName.get(r.relatedId)
+        : workerName.get(r.relatedId);
+    related = { type: r.relatedType, id: r.relatedId, name: name ?? "Unknown" };
+  }
+  return {
+    id: r.id,
+    title: r.title,
+    detail: r.detail,
+    status: r.status,
+    bucket: r.bucket,
+    related,
+    completionComment: r.completionComment,
+    completedAt: iso(r.completedAt),
+    createdAt: r.createdAt.toISOString(),
+  };
+}
+
 export function mapNotification(r: NotificationRow): Notification {
   return {
     id: r.id,

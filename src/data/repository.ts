@@ -21,6 +21,7 @@ import type { Pipeline, PipelineStats } from "../domain/deal.js";
 import type { ConvoListItem, ConversationDetail } from "../domain/conversation.js";
 import type { CalendarWeek, Digest } from "../domain/calendar.js";
 import type { Home } from "../domain/home.js";
+import type { Task, TaskCreate, TaskUpdate } from "../domain/task.js";
 import type {
   Contact,
   ContactCreate,
@@ -64,6 +65,11 @@ export interface Repository {
 
   // Jobs (flat, cross-customer — for the Jobs table)
   listJobs(): Promise<JobListItem[]>;
+
+  // Tasks ("Your priorities")
+  listTasks(): Promise<Task[]>;
+  createTask(input: TaskCreate): Promise<Task>;
+  updateTask(id: string, input: TaskUpdate): Promise<Task | undefined>;
 
   // Customer sub-resources (the 360° record)
   addContact(customerId: string, input: ContactCreate): Promise<Contact | undefined>;
