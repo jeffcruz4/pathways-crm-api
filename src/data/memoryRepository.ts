@@ -1015,12 +1015,23 @@ export class MemoryRepository implements Repository {
   // ── Pipeline = quotes grouped into stages ──
   async getPipeline() {
     const stats = assemblePipelineStats(this.quotes);
+    // Booked lane shows only recently-won work: quotes decided within the last
+    // 14 days. Other lanes are unbounded.
+    const BOOKED_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
+    const bookedCutoff = Date.now() - BOOKED_WINDOW_MS;
     const stages = PIPELINE_STAGES.map((meta) => ({
       id: meta.id as "new" | "needs-quote" | "quote-sent" | "follow-up" | "booked",
       label: meta.label,
       dot: meta.dot,
       deals: this.quotes
         .filter((q) => !q.archivedAt && (STATUS_TO_STAGE[q.status] ?? "new") === meta.id)
+        .filter((q) => {
+          if (meta.id !== "booked") return true;
+          // Keep bookings decided within the window (fall back to including
+          // rows with no decidedAt so legacy data isn't silently hidden).
+          const t = q.decidedAt ? new Date(q.decidedAt).getTime() : null;
+          return t == null || t >= bookedCutoff;
+        })
         .map((q) => ({
           id: q.id,
           stageId: meta.id as "new" | "needs-quote" | "quote-sent" | "follow-up" | "booked",
