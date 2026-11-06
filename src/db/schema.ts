@@ -74,6 +74,9 @@ export const appointmentStatus = pgEnum("appointment_status", [
   "no-show",
 ]);
 export const reviewSource = pgEnum("review_source", ["customer", "staff"]);
+export const taskStatus = pgEnum("task_status", ["open", "done"]);
+export const taskBucket = pgEnum("task_bucket", ["today", "overdue", "upcoming"]);
+export const taskRelatedType = pgEnum("task_related_type", ["customer", "team-member", "partner"]);
 export const interactionType = pgEnum("interaction_type", [
   "unplanned",
   "formal-meeting",
@@ -563,5 +566,33 @@ export const notifications = pgTable(
   },
   (t) => ({
     byTenant: index("notifications_tenant_idx").on(t.tenantId, t.createdAt),
+  }),
+);
+
+// ─────────────────────────────── Tasks ───────────────────────────────
+// A to-do surfaced in "Your priorities". Optionally related to a customer,
+// team member, or partner (polymorphic: related_type + related_id). Completing
+// a task requires a comment (stored in completion_comment).
+export const tasks = pgTable(
+  "tasks",
+  {
+    id: pk(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    title: text("title").notNull(),
+    detail: text("detail"),
+    status: taskStatus("status").notNull().default("open"),
+    bucket: taskBucket("bucket").notNull().default("today"),
+    relatedType: taskRelatedType("related_type"),
+    relatedId: uuid("related_id"),
+    completionComment: text("completion_comment"),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    archivedAt: archivedAt(),
+  },
+  (t) => ({
+    byTenant: index("tasks_tenant_idx").on(t.tenantId, t.status),
   }),
 );

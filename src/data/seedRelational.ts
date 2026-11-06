@@ -24,6 +24,7 @@ type PartnerIns = InferInsertModel<typeof schema.partners>;
 type InteractionIns = InferInsertModel<typeof schema.interactions>;
 type UserProfileIns = InferInsertModel<typeof schema.userProfiles>;
 type NotificationIns = InferInsertModel<typeof schema.notifications>;
+type TaskIns = InferInsertModel<typeof schema.tasks>;
 
 // Stable UUIDs. The "entity" segment must be valid hex, so each entity gets a
 // hex code in the 3rd group (…-00XX-…) and the row number fills the last group.
@@ -230,4 +231,15 @@ export const notifications: NotificationIns[] = [
   { id: nfid(4), tenantId: TENANT, type: "info", title: "Cori enriched a profile", body: "Cori built Tom Becker's profile from a 4m 12s call: biweekly cleaning, 2,400 sq ft, two dogs, prefers Thursday afternoons.", read: true, saved: false, ctaLabel: "View customer", ctaHref: "/customers", createdAt: daysFromNow(-2) },
   { id: nfid(5), tenantId: TENANT, type: "action", title: "Partner onboarding check-in", body: "SparkClean Crew's onboarding check-in is coming up in a few days. Confirm the time and scope.", read: false, saved: false, ctaLabel: "View partners", ctaHref: "/partners", createdAt: daysFromNow(-3) },
   { id: nfid(6), tenantId: TENANT, type: "info", title: "Weekly digest ready", body: "11 open quotes, 29 jobs on the schedule, and 3 new leads this week. Tap through for the full breakdown.", read: true, saved: false, ctaLabel: null, ctaHref: null, createdAt: daysFromNow(-5) },
+];
+
+// ── Tasks ("Your priorities") ──
+const tkid = (n: number) => U("8c0b", n); // task
+export const tasks: TaskIns[] = [
+  { id: tkid(1), tenantId: TENANT, title: "Call back new caller · (856) 555-0187", detail: "Cori texted them back at 8:14 AM. No reply yet.", status: "open", bucket: "overdue", relatedType: "customer", relatedId: cid(1), createdAt: daysFromNow(-1) },
+  { id: tkid(2), tenantId: TENANT, title: "Rachel Owens — move-out clean", detail: "She asked for a call this morning once she knew her closing date.", status: "open", bucket: "today", relatedType: "customer", relatedId: cid(5), createdAt: daysFromNow(0) },
+  { id: tkid(3), tenantId: TENANT, title: "The Porters — biweekly cleaning", detail: "Viewed twice, no reply in 6 days.", status: "open", bucket: "overdue", relatedType: "customer", relatedId: cid(4), createdAt: daysFromNow(-2) },
+  { id: tkid(4), tenantId: TENANT, title: "Linda Ferraro — inside-fridge request", detail: "“Can you do the inside of the fridge too?”", status: "open", bucket: "today", relatedType: "customer", relatedId: cid(3), createdAt: daysFromNow(0) },
+  { id: tkid(5), tenantId: TENANT, title: "Confirm Maria's Thursday schedule", detail: "Check Maria Santos is set for the Swedesboro route.", status: "open", bucket: "upcoming", relatedType: "team-member", relatedId: eid(1), createdAt: daysFromNow(1) },
+  { id: tkid(6), tenantId: TENANT, title: "SparkClean Crew onboarding check-in", detail: "Confirm scope + availability for overflow jobs.", status: "open", bucket: "upcoming", relatedType: "partner", relatedId: nid(3), createdAt: daysFromNow(2) },
 ];

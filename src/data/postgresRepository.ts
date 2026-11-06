@@ -34,8 +34,10 @@ import {
   mergePreferences,
   mapNotification,
   assembleNotificationList,
+  mapTask,
   type CustomerBundle,
 } from "./assemble.js";
+import type { Task, TaskCreate, TaskUpdate } from "../domain/task.js";
 import type { Customer, CustomerListItem, CustomerCreate, CustomerUpdate } from "../domain/customer.js";
 import type {
   Partner,
@@ -203,6 +205,65 @@ export class PostgresRepository implements Repository {
           reviewByJob.get(j.id),
         );
       });
+  }
+
+  // ── Tasks ──
+  private async taskNameMaps() {
+    const [customers, teamMembers, partners] = await Promise.all([
+      this.db.select().from(schema.customers),
+      this.db.select().from(schema.teamMembers),
+      this.db.select().from(schema.partners),
+    ]);
+    const customerName = new Map(customers.map((c) => [c.id, c.displayName]));
+    const workerName = new Map<string, string>();
+    for (const t of teamMembers) workerName.set(t.id, t.displayName);
+    for (const p of partners) workerName.set(p.id, p.displayName);
+    return { customerName, workerName };
+  }
+  async listTasks(): Promise<Task[]> {
+    const [rows, maps] = await Promise.all([
+      this.db.select().from(schema.tasks),
+      this.taskNameMaps(),
+    ]);
+    return rows
+      .filter((t) => !t.archivedAt)
+      .sort((a, z) => z.createdAt.getTime() - a.createdAt.getTime())
+      .map((t) => mapTask(t, maps.customerName, maps.workerName));
+  }
+  async createTask(input: TaskCreate): Promise<Task> {
+    const tenantId = await this.tenantId();
+    const [row] = await this.db
+      .insert(schema.tasks)
+      .values({
+        tenantId,
+        title: input.title,
+        detail: input.detail,
+        bucket: input.bucket ?? "today",
+        relatedType: input.relatedType,
+        relatedId: input.relatedId,
+      })
+      .returning();
+    const maps = await this.taskNameMaps();
+    return mapTask(row, maps.customerName, maps.workerName);
+  }
+  async updateTask(id: string, input: TaskUpdate): Promise<Task | undefined> {
+    const patch: Record<string, unknown> = { updatedAt: new Date() };
+    if (input.title !== undefined) patch.title = input.title;
+    if (input.detail !== undefined) patch.detail = input.detail;
+    if (input.bucket !== undefined) patch.bucket = input.bucket;
+    if (input.completionComment !== undefined) patch.completionComment = input.completionComment;
+    if (input.status !== undefined) {
+      patch.status = input.status;
+      patch.completedAt = input.status === "done" ? new Date() : null;
+    }
+    const [row] = await this.db
+      .update(schema.tasks)
+      .set(patch)
+      .where(eq(schema.tasks.id, id))
+      .returning();
+    if (!row) return undefined;
+    const maps = await this.taskNameMaps();
+    return mapTask(row, maps.customerName, maps.workerName);
   }
 
   // ── Customers ──
