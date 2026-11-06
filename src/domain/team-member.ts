@@ -18,6 +18,9 @@ export const TeamMember = z.object({
   hiredOn: z.string().nullable(),
   skills: z.array(z.string()),
   homeBase: z.string().nullable(),
+  /** Preferred working days (e.g. ["Mon","Tue"]) and hours (free text). */
+  preferredDays: z.array(z.string()),
+  preferredHours: z.string().nullable(),
 });
 
 export const TeamMemberListItem = TeamMember.pick({
@@ -64,6 +67,45 @@ export const TeamStats = z.object({
   spotlightReviews: z.array(TeamSpotlightReview),
 });
 
+// ── Team member detail (profile screen) ──
+import { Money } from "./money.js";
+import { JobListItem } from "./crm.js";
+
+/** A review attributed to this team member (via review → job). */
+export const TeamMemberReview = z.object({
+  id: z.string(),
+  customerId: z.string(),
+  customerName: z.string(),
+  rating: z.number().nullable(),
+  reviewText: z.string().nullable(),
+  serviceType: z.string(),
+  date: z.string(),
+});
+
+/** A customer referred by this team member. */
+export const TeamMemberReferredCustomer = z.object({
+  id: z.string(),
+  name: z.string(),
+  status: TeamMemberStatus.or(z.string()),
+});
+
+/**
+ * Full team-member profile: identity + rollups + rating & reviews + completed
+ * jobs + referred customers + preferred days/hours.
+ */
+export const TeamMemberDetail = TeamMember.extend({
+  jobsCompleted: z.number().int(),
+  jobsTotal: z.number().int(),
+  reviewCount: z.number().int(),
+  avgRating: z.number().nullable(),
+  lifetimeValue: Money,
+  reviews: z.array(TeamMemberReview),
+  jobs: z.array(JobListItem),
+  referredCustomers: z.array(
+    z.object({ id: z.string(), name: z.string(), status: z.string() }),
+  ),
+});
+
 export const TeamMemberCreate = z.object({
   name: z.string().min(1),
   firstName: z.string().optional(),
@@ -86,3 +128,5 @@ export type EmploymentType = z.infer<typeof EmploymentType>;
 export type TeamSpotlightReview = z.infer<typeof TeamSpotlightReview>;
 export type TeamStatusCounts = z.infer<typeof TeamStatusCounts>;
 export type TeamStats = z.infer<typeof TeamStats>;
+export type TeamMemberDetail = z.infer<typeof TeamMemberDetail>;
+export type TeamMemberReview = z.infer<typeof TeamMemberReview>;

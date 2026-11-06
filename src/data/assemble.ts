@@ -999,6 +999,89 @@ export function assembleTeamStats(
   return { counts, spotlightReviews: spotlight.slice(0, limit) };
 }
 
+/**
+ * Full team-member profile. Aggregates the member's jobs (via
+ * assignedTeamMemberId), their reviews (via job or the review's own
+ * reviewedTeamMemberId), customers they referred (referredByTeamMemberId), and
+ * preferred days/hours. Pure: callers pass the rows + resolver maps.
+ */
+export function assembleTeamMemberDetail(
+  member: TeamMemberRow,
+  allJobs: JobRow[],
+  allReviews: ReviewRowT[],
+  customers: CustomerRow[],
+  properties: PropertyRow[],
+): import("../domain/team-member.js").TeamMemberDetail {
+  const customerById = new Map(customers.map((c) => [c.id, c]));
+  const propAddr = new Map(properties.map((p) => [p.id, addressLine(p)]));
+  const reviewByJob = new Map(allReviews.map((r) => [r.jobId, r]));
+
+  const myJobs = allJobs
+    .filter((j) => !j.archivedAt && j.assignedTeamMemberId === member.id)
+    .sort((a, z) => {
+      const ad = (a.completedAt ?? a.scheduledStart)?.getTime() ?? 0;
+      const zd = (z.completedAt ?? z.scheduledStart)?.getTime() ?? 0;
+      return zd - ad;
+    });
+  const myJobIds = new Set(myJobs.map((j) => j.id));
+  const completed = myJobs.filter((j) => j.status === "completed");
+  const ltvCents = completed.reduce((s, j) => s + (j.priceCents ?? 0), 0);
+
+  const myReviews = allReviews
+    .filter((r) => myJobIds.has(r.jobId) || r.reviewedTeamMemberId === member.id)
+    .filter((r) => r.rating != null || r.reviewText);
+  const reviews = myReviews
+    .map((r) => {
+      const job = allJobs.find((j) => j.id === r.jobId);
+      return {
+        id: r.id,
+        customerId: r.customerId,
+        customerName: customerById.get(r.customerId)?.displayName ?? "Customer",
+        rating: r.rating,
+        reviewText: r.reviewText,
+        serviceType: job?.serviceType ?? "standard",
+        date: (job?.completedAt ?? r.createdAt).toISOString(),
+      };
+    })
+    .sort((a, z) => z.date.localeCompare(a.date));
+
+  const referredCustomers = customers
+    .filter((c) => !c.archivedAt && c.referredByTeamMemberId === member.id)
+    .map((c) => ({ id: c.id, name: c.displayName, status: c.status }));
+
+  const jobs = myJobs.map((j) =>
+    jobListItem(
+      j,
+      customerById.get(j.customerId)?.displayName ?? "Customer",
+      propAddr.get(j.propertyId) ?? "—",
+      member.displayName,
+      reviewByJob.get(j.id),
+    ),
+  );
+
+  return {
+    id: member.id,
+    name: member.displayName,
+    email: member.email,
+    phone: member.phone,
+    status: member.status,
+    employmentType: member.employmentType,
+    hiredOn: member.hiredOn,
+    skills: member.skills,
+    homeBase: member.homeBase,
+    preferredDays: member.preferredDays ?? [],
+    preferredHours: member.preferredHours ?? null,
+    jobsCompleted: completed.length,
+    jobsTotal: myJobs.length,
+    reviewCount: myReviews.length,
+    avgRating: meanRating(myReviews.map((r) => r.rating).filter((n): n is number => n != null)),
+    lifetimeValue: formatMoney(ltvCents),
+    reviews,
+    jobs,
+    referredCustomers,
+  };
+}
+
 // ── Partner highlights (producer / rated / revenue) ──
 
 /**

@@ -66,8 +66,8 @@ export const userProfiles: UserProfileIns[] = [
 ];
 
 export const teamMembers: TeamMemberIns[] = [
-  { id: eid(1), tenantId: TENANT, slug: "maria-santos", displayName: "Maria Santos", email: "maria@corvia.example", status: "active", employmentType: "full-time", skills: ["standard", "deep"], homeBase: "Swedesboro" },
-  { id: eid(2), tenantId: TENANT, slug: "james-lee", displayName: "James Lee", email: "james@corvia.example", status: "active", employmentType: "full-time", skills: ["standard", "move-out"], homeBase: "Mullica Hill" },
+  { id: eid(1), tenantId: TENANT, slug: "maria-santos", displayName: "Maria Santos", email: "maria@corvia.example", status: "active", employmentType: "full-time", skills: ["standard", "deep"], homeBase: "Swedesboro", preferredDays: ["Mon", "Tue", "Wed", "Thu", "Fri"], preferredHours: "8:00 AM – 4:00 PM" },
+  { id: eid(2), tenantId: TENANT, slug: "james-lee", displayName: "James Lee", email: "james@corvia.example", status: "active", employmentType: "full-time", skills: ["standard", "move-out"], homeBase: "Mullica Hill", preferredDays: ["Tue", "Wed", "Thu", "Sat"], preferredHours: "9:00 AM – 5:00 PM" },
 ];
 
 export const partners: PartnerIns[] = [
