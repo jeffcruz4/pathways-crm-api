@@ -923,12 +923,20 @@ export class PostgresRepository implements Repository {
     ]);
     const nameById = new Map(customers.map((c) => [c.id, c.displayName]));
     const stats = assemblePipelineStats(rows);
+    // Booked lane shows only recently-won work: quotes decided within the last
+    // 14 days. Other lanes are unbounded.
+    const bookedCutoff = Date.now() - 14 * 24 * 60 * 60 * 1000;
     const stages: PipelineStage[] = PIPELINE_STAGES.map((meta) => ({
       id: meta.id as PipelineStage["id"],
       label: meta.label,
       dot: meta.dot,
       deals: rows
         .filter((q) => !q.archivedAt && (STATUS_TO_STAGE[q.status] ?? "new") === meta.id)
+        .filter((q) => {
+          if (meta.id !== "booked") return true;
+          const t = q.decidedAt ? new Date(q.decidedAt).getTime() : null;
+          return t == null || t >= bookedCutoff;
+        })
         .map((q) => ({
           id: q.id,
           stageId: meta.id as PipelineStage["id"],
