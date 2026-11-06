@@ -685,6 +685,15 @@ export class MemoryRepository implements Repository {
       accessNotes: input.accessNotes,
       isPrimary: input.isPrimary ?? false,
     });
+    // A customer has at most one primary property: adding a primary demotes the
+    // rest. Also make the very first property primary by default.
+    if (row.isPrimary) {
+      for (const p of this.properties) {
+        if (p.customerId === c.id) p.isPrimary = false;
+      }
+    } else if (!this.properties.some((p) => p.customerId === c.id)) {
+      row.isPrimary = true;
+    }
     this.properties.push(row);
     return mapProperty(row);
   }
