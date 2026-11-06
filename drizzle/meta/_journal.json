@@ -29,6 +29,13 @@
       "when": 1793855706840,
       "tag": "0003_thin_nuke",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793982241925,
+      "tag": "0004_loud_blink",
+      "breakpoints": true
     }
   ]
 }

@@ -125,6 +125,7 @@ export const customers = pgTable(
     preferredContact: contactChannel("preferred_contact"),
     source: text("source"),
     referredByPartnerId: uuid("referred_by_partner_id").references(() => partners.id),
+    referredByTeamMemberId: uuid("referred_by_team_member_id").references(() => teamMembers.id),
     summary: text("summary").notNull().default(""),
     provenance: text("provenance").notNull().default(""),
     goodToKnow: jsonb("good_to_know").$type<string[]>().notNull().default([]),

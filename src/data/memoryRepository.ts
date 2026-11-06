@@ -152,6 +152,7 @@ export class MemoryRepository implements Repository {
       preferredContact: c.preferredContact ?? null,
       source: c.source ?? null,
       referredByPartnerId: c.referredByPartnerId ?? null,
+      referredByTeamMemberId: c.referredByTeamMemberId ?? null,
       summary: c.summary ?? "",
       provenance: c.provenance ?? "",
       goodToKnow: c.goodToKnow ?? [],
@@ -504,6 +505,8 @@ export class MemoryRepository implements Repository {
       lifecycleStage: input.stage ?? "new-lead",
       preferredContact: input.preferredContact,
       source: input.source,
+      referredByTeamMemberId: input.referredByTeamMemberId,
+      referredByPartnerId: input.referredByPartnerId,
       summary: input.summary ?? "",
       tags: input.tags ?? [],
       notes: input.notes,
@@ -534,6 +537,16 @@ export class MemoryRepository implements Repository {
     if (input.stage !== undefined) row.lifecycleStage = input.stage;
     if (input.preferredContact !== undefined) row.preferredContact = input.preferredContact;
     if (input.source !== undefined) row.source = input.source;
+    // Referrer is mutually exclusive: setting a team member clears the partner
+    // (and vice versa); passing null for a field clears it.
+    if (input.referredByTeamMemberId !== undefined) {
+      row.referredByTeamMemberId = input.referredByTeamMemberId;
+      if (input.referredByTeamMemberId) row.referredByPartnerId = null;
+    }
+    if (input.referredByPartnerId !== undefined) {
+      row.referredByPartnerId = input.referredByPartnerId;
+      if (input.referredByPartnerId) row.referredByTeamMemberId = null;
+    }
     if (input.summary !== undefined) row.summary = input.summary;
     if (input.tags !== undefined) row.tags = input.tags;
     if (input.goodToKnow !== undefined) row.goodToKnow = input.goodToKnow;
