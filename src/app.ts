@@ -14,6 +14,7 @@ import { pipelineRoutes } from "./routes/pipeline.js";
 import { quoteRoutes } from "./routes/quotes.js";
 import { conversationRoutes } from "./routes/conversations.js";
 import { calendarRoutes } from "./routes/calendar.js";
+import { jobRoutes } from "./routes/jobs.js";
 
 /**
  * Build the Fastify app. Separated from server start so it can be imported in
@@ -51,6 +52,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   await app.register(quoteRoutes(repo), { prefix: apiPrefix });
   await app.register(conversationRoutes(repo), { prefix: apiPrefix });
   await app.register(calendarRoutes(repo), { prefix: apiPrefix });
+  await app.register(jobRoutes(repo), { prefix: apiPrefix });
 
   return app;
 }

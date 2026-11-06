@@ -363,6 +363,35 @@ export function mapReview(r: ReviewRow): Review {
   };
 }
 
+/**
+ * Flat job row for the cross-customer Jobs table. Pure: callers pass the job
+ * row plus resolved customer name, property address, assignee name, and its
+ * review (for the rating).
+ */
+export function jobListItem(
+  j: JobRow,
+  customerName: string,
+  propertyAddress: string,
+  assigneeName: string | null,
+  review: ReviewRow | undefined,
+): import("../domain/crm.js").JobListItem {
+  return {
+    id: j.id,
+    customerId: j.customerId,
+    customerName,
+    propertyId: j.propertyId,
+    propertyAddress,
+    status: j.status,
+    serviceType: j.serviceType,
+    scheduledStart: iso(j.scheduledStart),
+    completedAt: iso(j.completedAt),
+    assigneeType: j.assigneeType,
+    assigneeName,
+    price: j.priceCents == null ? null : formatMoney(j.priceCents, j.currency),
+    rating: review?.rating ?? null,
+  };
+}
+
 export function mapJob(r: JobRow, review: ReviewRow | undefined, assigneeName: string | null): Job {
   return {
     id: r.id,

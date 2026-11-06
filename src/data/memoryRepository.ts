@@ -21,6 +21,8 @@ import {
   mapQuote,
   mapReview,
   mapJob,
+  jobListItem,
+  addressLine,
   mapServiceOffering,
   mapAppointment,
   mapInteraction,
@@ -464,6 +466,30 @@ export class MemoryRepository implements Repository {
   }
   async getCalendarWeek() {
     return seed.calendarWeek;
+  }
+
+  // ── Jobs (flat, cross-customer) ──
+  async listJobs() {
+    const customerName = new Map(this.customers.map((c) => [c.id, c.displayName]));
+    const propAddr = new Map(this.properties.map((p) => [p.id, addressLine(p)]));
+    const reviewByJob = new Map(this.reviews.map((r) => [r.jobId, r]));
+    return this.jobs
+      .filter((j) => !j.archivedAt)
+      .sort((a, z) => {
+        const ad = (a.completedAt ?? a.scheduledStart)?.getTime() ?? 0;
+        const zd = (z.completedAt ?? z.scheduledStart)?.getTime() ?? 0;
+        return zd - ad;
+      })
+      .map((j) => {
+        const workerId = j.assignedTeamMemberId ?? j.assignedPartnerId ?? null;
+        return jobListItem(
+          j,
+          customerName.get(j.customerId) ?? "Customer",
+          propAddr.get(j.propertyId) ?? "—",
+          workerId ? (this.workerNames.get(workerId) ?? null) : null,
+          reviewByJob.get(j.id),
+        );
+      });
   }
 
   // ── Customers ──

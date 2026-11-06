@@ -21,6 +21,8 @@ import {
   mapQuote,
   mapReview,
   mapJob,
+  jobListItem,
+  addressLine,
   mapServiceOffering,
   mapAppointment,
   mapInteraction,
@@ -164,6 +166,42 @@ export class PostgresRepository implements Repository {
   }
   async getDigest() {
     return seed.digest;
+  }
+
+  // ── Jobs (flat, cross-customer) ──
+  async listJobs() {
+    const [jobs, customers, properties, reviews, teamMembers, partners] = await Promise.all([
+      this.db.select().from(schema.jobs),
+      this.db.select().from(schema.customers),
+      this.db.select().from(schema.properties),
+      this.db.select().from(schema.jobReviews),
+      this.db.select().from(schema.teamMembers),
+      this.db.select().from(schema.partners),
+    ]);
+    const customerName = new Map(customers.map((c) => [c.id, c.displayName]));
+    const propAddr = new Map(properties.map((p) => [p.id, addressLine(p)]));
+    const reviewByJob = new Map(reviews.map((r) => [r.jobId, r]));
+    const workerName = new Map<string, string>();
+    for (const t of teamMembers) workerName.set(t.id, t.displayName);
+    for (const p of partners) workerName.set(p.id, p.displayName);
+
+    return jobs
+      .filter((j) => !j.archivedAt)
+      .sort((a, z) => {
+        const ad = (a.completedAt ?? a.scheduledStart)?.getTime() ?? 0;
+        const zd = (z.completedAt ?? z.scheduledStart)?.getTime() ?? 0;
+        return zd - ad;
+      })
+      .map((j) => {
+        const workerId = j.assignedTeamMemberId ?? j.assignedPartnerId ?? null;
+        return jobListItem(
+          j,
+          customerName.get(j.customerId) ?? "Customer",
+          propAddr.get(j.propertyId) ?? "—",
+          workerId ? (workerName.get(workerId) ?? null) : null,
+          reviewByJob.get(j.id),
+        );
+      });
   }
 
   // ── Customers ──
