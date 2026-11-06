@@ -8,6 +8,7 @@ import {
   assembleCustomer,
   assembleCustomerStats,
   assembleTeamStats,
+  assembleTeamMemberDetail,
   assemblePartnerHighlights,
   assemblePipelineStats,
   teamMemberRollups,
@@ -750,6 +751,21 @@ export class PostgresRepository implements Repository {
     }));
   }
 
+  async getTeamMember(id: string) {
+    const [member] = await this.db
+      .select()
+      .from(schema.teamMembers)
+      .where(eq(schema.teamMembers.id, id));
+    if (!member || member.archivedAt) return undefined;
+    const [jobs, reviews, customers, properties] = await Promise.all([
+      this.db.select().from(schema.jobs),
+      this.db.select().from(schema.jobReviews),
+      this.db.select().from(schema.customers),
+      this.db.select().from(schema.properties),
+    ]);
+    return assembleTeamMemberDetail(member, jobs, reviews, customers, properties);
+  }
+
   async getTeamStats(): Promise<TeamStats> {
     const [teamMembers, jobs, reviews, customers] = await Promise.all([
       this.db.select().from(schema.teamMembers),
@@ -918,6 +934,8 @@ export class PostgresRepository implements Repository {
       hiredOn: r.hiredOn,
       skills: r.skills,
       homeBase: r.homeBase,
+      preferredDays: r.preferredDays ?? [],
+      preferredHours: r.preferredHours ?? null,
     };
   }
 

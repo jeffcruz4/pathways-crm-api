@@ -8,6 +8,7 @@ import {
   assembleCustomer,
   assembleCustomerStats,
   assembleTeamStats,
+  assembleTeamMemberDetail,
   assemblePartnerHighlights,
   assemblePipelineStats,
   PIPELINE_STAGES,
@@ -312,6 +313,8 @@ export class MemoryRepository implements Repository {
       employmentType: c.employmentType ?? "full-time",
       skills: c.skills ?? [],
       homeBase: c.homeBase ?? null,
+      preferredDays: c.preferredDays ?? [],
+      preferredHours: c.preferredHours ?? null,
       notes: c.notes ?? null,
       createdAt: nowTs(),
       updatedAt: nowTs(),
@@ -929,6 +932,12 @@ export class MemoryRepository implements Repository {
     }));
   }
 
+  async getTeamMember(id: string) {
+    const member = this.teamMembers.find((t) => t.id === id && !t.archivedAt);
+    if (!member) return undefined;
+    return assembleTeamMemberDetail(member, this.jobs, this.reviews, this.customers, this.properties);
+  }
+
   async getTeamStats(): Promise<TeamStats> {
     return assembleTeamStats(this.teamMembers, this.jobs, this.reviews, this.customers);
   }
@@ -1014,6 +1023,8 @@ export class MemoryRepository implements Repository {
       hiredOn: row.hiredOn,
       skills: row.skills,
       homeBase: row.homeBase,
+      preferredDays: row.preferredDays ?? [],
+      preferredHours: row.preferredHours ?? null,
     };
   }
 

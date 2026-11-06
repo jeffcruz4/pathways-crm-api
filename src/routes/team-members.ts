@@ -11,7 +11,17 @@ export function teamMemberRoutes(repo: Repository) {
     });
 
     // Filter-tab counts + the review spotlight for the My Team screen.
+    // Static route matched before :id so "stats" is never treated as an id.
     app.get("/team-members/stats", async () => repo.getTeamStats());
+
+    // Full profile: identity + rollups + reviews + jobs + referred customers.
+    app.get<{ Params: { id: string } }>("/team-members/:id", async (req, reply) => {
+      const member = await repo.getTeamMember(req.params.id);
+      if (!member) {
+        return reply.code(404).send({ error: "not_found", message: "Team member not found" });
+      }
+      return member;
+    });
 
     app.post("/team-members", async (req, reply) => {
       const input = parseBody(TeamMemberCreate, req.body, reply);

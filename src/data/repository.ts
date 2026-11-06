@@ -7,7 +7,7 @@ import type {
   PartnerHighlights,
   UpcomingPartnerItem,
 } from "../domain/partner.js";
-import type { TeamMember, TeamMemberListItem, TeamMemberCreate, TeamStats } from "../domain/team-member.js";
+import type { TeamMember, TeamMemberListItem, TeamMemberCreate, TeamStats, TeamMemberDetail } from "../domain/team-member.js";
 import type { UserProfile, UserProfileUpdate, UserIdentity } from "../domain/user-profile.js";
 import type {
   Notification,
@@ -99,6 +99,7 @@ export interface Repository {
 
   // Team members (full-time staff)
   listTeamMembers(): Promise<TeamMemberListItem[]>;
+  getTeamMember(id: string): Promise<TeamMemberDetail | undefined>;
   createTeamMember(input: TeamMemberCreate): Promise<TeamMember>;
   getTeamStats(): Promise<TeamStats>;
 

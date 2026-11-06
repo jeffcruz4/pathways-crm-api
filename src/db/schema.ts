@@ -318,6 +318,10 @@ export const teamMembers = pgTable(
     employmentType: employmentType("employment_type").notNull().default("full-time"),
     skills: jsonb("skills").$type<string[]>().notNull().default([]),
     homeBase: text("home_base"),
+    /** Preferred working days, e.g. ["Mon","Tue","Wed"]. */
+    preferredDays: jsonb("preferred_days").$type<string[]>().notNull().default([]),
+    /** Preferred working hours, free text e.g. "8:00 AM – 4:00 PM". */
+    preferredHours: text("preferred_hours"),
     notes: text("notes"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
