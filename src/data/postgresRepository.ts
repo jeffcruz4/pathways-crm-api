@@ -217,6 +217,8 @@ export class PostgresRepository implements Repository {
         lifecycleStage: input.stage ?? "new-lead",
         preferredContact: input.preferredContact,
         source: input.source,
+        referredByTeamMemberId: input.referredByTeamMemberId,
+        referredByPartnerId: input.referredByPartnerId,
         summary: input.summary ?? "",
         tags: input.tags ?? [],
         notes: input.notes,
@@ -257,6 +259,15 @@ export class PostgresRepository implements Repository {
     if (input.stage !== undefined) patch.lifecycleStage = input.stage;
     if (input.preferredContact !== undefined) patch.preferredContact = input.preferredContact;
     if (input.source !== undefined) patch.source = input.source;
+    // Referrer is mutually exclusive: setting one clears the other; null clears.
+    if (input.referredByTeamMemberId !== undefined) {
+      patch.referredByTeamMemberId = input.referredByTeamMemberId;
+      if (input.referredByTeamMemberId) patch.referredByPartnerId = null;
+    }
+    if (input.referredByPartnerId !== undefined) {
+      patch.referredByPartnerId = input.referredByPartnerId;
+      if (input.referredByPartnerId) patch.referredByTeamMemberId = null;
+    }
     if (input.summary !== undefined) patch.summary = input.summary;
     if (input.tags !== undefined) patch.tags = input.tags;
     if (input.goodToKnow !== undefined) patch.goodToKnow = input.goodToKnow;

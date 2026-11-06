@@ -455,6 +455,23 @@ export function assembleCustomer(b: CustomerBundle, now = new Date()): Customer 
 
   const ltvCents = lifetimeValueCents(b.jobs);
 
+  // Resolve the referrer (team member or partner) to a display object. Names
+  // come from the shared workerNameById map (team members + partners).
+  let referredBy: Customer["referredBy"] = null;
+  if (c.referredByTeamMemberId) {
+    referredBy = {
+      type: "team-member",
+      id: c.referredByTeamMemberId,
+      name: b.workerNameById.get(c.referredByTeamMemberId) ?? "Team member",
+    };
+  } else if (c.referredByPartnerId) {
+    referredBy = {
+      type: "partner",
+      id: c.referredByPartnerId,
+      name: b.workerNameById.get(c.referredByPartnerId) ?? "Partner",
+    };
+  }
+
   const jobs = [...b.jobs]
     .sort((a, z) => {
       const ad = (a.completedAt ?? a.scheduledStart)?.getTime() ?? 0;
@@ -487,6 +504,7 @@ export function assembleCustomer(b: CustomerBundle, now = new Date()): Customer 
     nextStep: undefined,
     goodToKnow: c.goodToKnow,
     activity: [],
+    referredBy,
 
     lifetimeValueMoney: formatMoney(ltvCents),
     contacts: b.contacts.map(mapContact),

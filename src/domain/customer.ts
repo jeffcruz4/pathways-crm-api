@@ -40,6 +40,13 @@ export const NextStep = z.object({
   cta: z.string(),
 });
 
+/** Who referred this customer — a team member or a partner. */
+export const ReferredBy = z.object({
+  type: z.enum(["team-member", "partner"]),
+  id: z.string(),
+  name: z.string(),
+});
+
 export const Customer = z.object({
   id: z.string(),
   name: z.string(),
@@ -58,6 +65,8 @@ export const Customer = z.object({
   nextStep: NextStep.optional(),
   goodToKnow: z.array(z.string()),
   activity: z.array(ActivityItem),
+  /** Who referred this customer (team member or partner), if known. */
+  referredBy: ReferredBy.nullable(),
 
   // ── 360° relational collections (assembled from related tables) ──
   lifetimeValueMoney: Money,
@@ -94,6 +103,9 @@ export const CustomerCreate = z.object({
   stage: CustomerStage.optional(),
   preferredContact: ContactChannel.optional(),
   source: z.string().optional(),
+  /** Referrer — exactly one of these (team member or partner). */
+  referredByTeamMemberId: z.string().optional(),
+  referredByPartnerId: z.string().optional(),
   summary: z.string().optional(),
   tags: z.array(z.string()).optional(),
   notes: z.string().optional(),
@@ -112,6 +124,9 @@ export const CustomerUpdate = z.object({
   stage: CustomerStage.optional(),
   preferredContact: ContactChannel.nullable().optional(),
   source: z.string().nullable().optional(),
+  /** Referrer — set one and the other is cleared; null clears both. */
+  referredByTeamMemberId: z.string().nullable().optional(),
+  referredByPartnerId: z.string().nullable().optional(),
   summary: z.string().optional(),
   tags: z.array(z.string()).optional(),
   goodToKnow: z.array(z.string()).optional(),
@@ -119,6 +134,7 @@ export const CustomerUpdate = z.object({
 });
 
 export type Customer = z.infer<typeof Customer>;
+export type ReferredBy = z.infer<typeof ReferredBy>;
 export type CustomerListItem = z.infer<typeof CustomerListItem>;
 export type CustomerCreate = z.infer<typeof CustomerCreate>;
 export type CustomerUpdate = z.infer<typeof CustomerUpdate>;
