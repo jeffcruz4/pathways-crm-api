@@ -218,6 +218,27 @@ export const JobCreate = z.object({
   notes: z.string().optional(),
 });
 
+/**
+ * Flat job row for the cross-customer Jobs table (GET /jobs). Carries the
+ * resolved customer name + property address + assignee so the table can show
+ * and filter without extra lookups.
+ */
+export const JobListItem = z.object({
+  id: z.string(),
+  customerId: z.string(),
+  customerName: z.string(),
+  propertyId: z.string(),
+  propertyAddress: z.string(),
+  status: JobStatus,
+  serviceType: ServiceType,
+  scheduledStart: z.string().nullable(),
+  completedAt: z.string().nullable(),
+  assigneeType: AssigneeType.nullable(),
+  assigneeName: z.string().nullable(),
+  price: Money.nullable(),
+  rating: z.number().nullable(),
+});
+
 // ── Service offerings (reusable catalog; plan templates) ──
 export const ServiceOffering = z.object({
   id: z.string(),
@@ -320,6 +341,7 @@ export type Review = z.infer<typeof Review>;
 export type ReviewCreate = z.infer<typeof ReviewCreate>;
 export type Job = z.infer<typeof Job>;
 export type JobCreate = z.infer<typeof JobCreate>;
+export type JobListItem = z.infer<typeof JobListItem>;
 export type ServiceOffering = z.infer<typeof ServiceOffering>;
 export type ServiceOfferingCreate = z.infer<typeof ServiceOfferingCreate>;
 export type ServiceOfferingUpdate = z.infer<typeof ServiceOfferingUpdate>;

@@ -34,6 +34,7 @@ import type {
   QuoteUpdate,
   Job,
   JobCreate,
+  JobListItem,
   Review,
   ReviewCreate,
   ServiceOffering,
@@ -60,6 +61,9 @@ export interface Repository {
   getCustomer(id: string): Promise<Customer | undefined>;
   createCustomer(input: CustomerCreate): Promise<Customer>;
   updateCustomer(id: string, input: CustomerUpdate): Promise<Customer | undefined>;
+
+  // Jobs (flat, cross-customer — for the Jobs table)
+  listJobs(): Promise<JobListItem[]>;
 
   // Customer sub-resources (the 360° record)
   addContact(customerId: string, input: ContactCreate): Promise<Contact | undefined>;
