@@ -10,7 +10,7 @@ import { z } from "zod";
  */
 
 export const CommChannel = z.enum(["sms", "email", "voice"]);
-export const CommProvider = z.enum(["twilio"]);
+export const CommProvider = z.enum(["twilio", "gohighlevel"]);
 export const ConnectionStatus = z.enum([
   "not_connected",
   "setup_required",
