@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { InferSelectModel } from "drizzle-orm";
 import type { Repository } from "./repository.js";
+import { MemoryCommsRepository } from "./memoryCommsRepository.js";
 import * as schema from "../db/schema.js";
 import * as seed from "./seed.js";
 import * as rel from "./seedRelational.js";
@@ -69,6 +70,7 @@ import type {
   QuoteUpdate,
   Job,
   JobCreate,
+  JobUpdate,
   Review,
   ReviewCreate,
   ServiceOffering,
@@ -123,8 +125,15 @@ export class MemoryRepository implements Repository {
   private tasks: TaskRow[] = [];
   private workerNames = new Map<string, string>();
   private readonly tenantId = rel.tenant.id!;
+  readonly comms: MemoryCommsRepository;
 
   constructor() {
+    this.comms = new MemoryCommsRepository(
+      (idOrSlug) => this.find(idOrSlug)?.id,
+      (phoneE164) =>
+        this.contacts.filter((c) => c.value === phoneE164).map((c) => c.customerId),
+      (customerId) => this.customers.find((c) => c.id === customerId)?.displayName ?? null,
+    );
     this.teamMembers = rel.teamMembers.map((c) => this.fillTeamMember(c));
     this.partners = rel.partners.map((p) => this.fillPartner(p));
     this.offerings = rel.serviceOfferings.map((o) => this.fillOffering(o));
@@ -793,6 +802,24 @@ export class MemoryRepository implements Repository {
       priceCents: input.priceCents,
     });
     this.jobs.push(row);
+    const workerId = row.assignedTeamMemberId ?? row.assignedPartnerId ?? null;
+    return mapJob(row, undefined, workerId ? (this.workerNames.get(workerId) ?? null) : null);
+  }
+
+  async updateJob(customerId: string, jobId: string, input: JobUpdate): Promise<Job | undefined> {
+    const c = this.find(customerId);
+    if (!c) return undefined;
+    const row = this.jobs.find((j) => j.id === jobId && j.customerId === c.id);
+    if (!row) return undefined;
+    if (input.status !== undefined) row.status = input.status;
+    if (input.scheduledStart !== undefined)
+      row.scheduledStart = input.scheduledStart ? new Date(input.scheduledStart) : null;
+    if (input.scheduledEnd !== undefined)
+      row.scheduledEnd = input.scheduledEnd ? new Date(input.scheduledEnd) : null;
+    if (input.completedAt !== undefined)
+      row.completedAt = input.completedAt ? new Date(input.completedAt) : null;
+    if (input.notes !== undefined) row.notes = input.notes;
+    row.updatedAt = new Date();
     const workerId = row.assignedTeamMemberId ?? row.assignedPartnerId ?? null;
     return mapJob(row, undefined, workerId ? (this.workerNames.get(workerId) ?? null) : null);
   }

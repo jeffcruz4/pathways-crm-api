@@ -1,6 +1,7 @@
 import { eq, and, asc, inArray, isNotNull, gte } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import type { Repository } from "./repository.js";
+import { PostgresCommsRepository } from "./postgresCommsRepository.js";
 import * as schema from "../db/schema.js";
 import * as seed from "./seed.js";
 import type { InferSelectModel } from "drizzle-orm";
@@ -73,6 +74,7 @@ import type {
   QuoteUpdate,
   Job,
   JobCreate,
+  JobUpdate,
   Review,
   ReviewCreate,
   ServiceOffering,
@@ -96,7 +98,18 @@ function isUuid(s: string): boolean {
  * Home, and Digest aren't modeled in this schema yet and are served from seed.
  */
 export class PostgresRepository implements Repository {
-  constructor(private readonly db: PostgresJsDatabase<typeof schema>) {}
+  readonly comms: PostgresCommsRepository;
+
+  constructor(private readonly db: PostgresJsDatabase<typeof schema>) {
+    this.comms = new PostgresCommsRepository(
+      db,
+      () => this.tenantId(),
+      async (idOrSlug) => {
+        const row = await this.resolveCustomer(idOrSlug);
+        return row ? { id: row.id, tenantId: row.tenantId } : undefined;
+      },
+    );
+  }
 
   /** The single tenant for now (multi-tenant columns exist; auth comes later). */
   private async tenantId(): Promise<string> {
@@ -557,6 +570,31 @@ export class PostgresRepository implements Repository {
         priceCents: input.priceCents,
       })
       .returning();
+    const name =
+      row.assignedTeamMemberId || row.assignedPartnerId
+        ? await this.workerName(row.assignedTeamMemberId, row.assignedPartnerId)
+        : null;
+    return mapJob(row, undefined, name);
+  }
+
+  async updateJob(customerId: string, jobId: string, input: JobUpdate): Promise<Job | undefined> {
+    const c = await this.resolveCustomer(customerId);
+    if (!c) return undefined;
+    const patch: Record<string, unknown> = { updatedAt: new Date() };
+    if (input.status !== undefined) patch.status = input.status;
+    if (input.scheduledStart !== undefined)
+      patch.scheduledStart = input.scheduledStart ? new Date(input.scheduledStart) : null;
+    if (input.scheduledEnd !== undefined)
+      patch.scheduledEnd = input.scheduledEnd ? new Date(input.scheduledEnd) : null;
+    if (input.completedAt !== undefined)
+      patch.completedAt = input.completedAt ? new Date(input.completedAt) : null;
+    if (input.notes !== undefined) patch.notes = input.notes;
+    const [row] = await this.db
+      .update(schema.jobs)
+      .set(patch as never)
+      .where(and(eq(schema.jobs.id, jobId), eq(schema.jobs.customerId, c.id)))
+      .returning();
+    if (!row) return undefined;
     const name =
       row.assignedTeamMemberId || row.assignedPartnerId
         ? await this.workerName(row.assignedTeamMemberId, row.assignedPartnerId)

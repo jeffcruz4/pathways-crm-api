@@ -16,7 +16,14 @@ export const PlanStatus = z.enum(["active", "paused", "cancelled"]);
 export const QuoteStatus = z.enum(["draft", "sent", "follow-up", "accepted", "declined", "expired"]);
 export const PriceUnit = z.enum(["per-visit", "flat"]);
 export const QuoteSignal = z.enum(["cori", "needs-you", "info"]);
-export const JobStatus = z.enum(["scheduled", "in-progress", "completed", "cancelled", "no-show"]);
+export const JobStatus = z.enum([
+  "scheduled",
+  "en-route",
+  "in-progress",
+  "completed",
+  "cancelled",
+  "no-show",
+]);
 export const AssigneeType = z.enum(["team_member", "partner"]);
 export const ContactKind = z.enum(["mobile", "landline", "email"]);
 export const ContactChannel = z.enum(["sms", "email", "call"]);
@@ -218,6 +225,15 @@ export const JobCreate = z.object({
   notes: z.string().optional(),
 });
 
+/** Partial update for PATCH /customers/:id/jobs/:jobId — drives SMS lifecycle. */
+export const JobUpdate = z.object({
+  status: JobStatus.optional(),
+  scheduledStart: z.string().nullable().optional(),
+  scheduledEnd: z.string().nullable().optional(),
+  completedAt: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+});
+
 /**
  * Flat job row for the cross-customer Jobs table (GET /jobs). Carries the
  * resolved customer name + property address + assignee so the table can show
@@ -341,6 +357,7 @@ export type Review = z.infer<typeof Review>;
 export type ReviewCreate = z.infer<typeof ReviewCreate>;
 export type Job = z.infer<typeof Job>;
 export type JobCreate = z.infer<typeof JobCreate>;
+export type JobUpdate = z.infer<typeof JobUpdate>;
 export type JobListItem = z.infer<typeof JobListItem>;
 export type ServiceOffering = z.infer<typeof ServiceOffering>;
 export type ServiceOfferingCreate = z.infer<typeof ServiceOfferingCreate>;

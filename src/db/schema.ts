@@ -53,6 +53,7 @@ export const priceUnit = pgEnum("price_unit", ["per-visit", "flat"]);
 export const dealSignal = pgEnum("deal_signal", ["cori", "needs-you", "info"]);
 export const jobStatus = pgEnum("job_status", [
   "scheduled",
+  "en-route",
   "in-progress",
   "completed",
   "cancelled",
@@ -594,5 +595,363 @@ export const tasks = pgTable(
   },
   (t) => ({
     byTenant: index("tasks_tenant_idx").on(t.tenantId, t.status),
+  }),
+);
+
+// ════════════════════════════════════════════════════════════════════════
+//  Unified Communications — Twilio SMS
+//
+//  Implements the Twilio SMS feature spec. The design keeps the message store
+//  and preference model provider-neutral so email/voice/social channels can be
+//  added later behind the same shared concepts. Twilio-specific identifiers are
+//  stored as metadata; core behavior (consent, idempotency, history) does not
+//  depend on Twilio fields.
+// ════════════════════════════════════════════════════════════════════════
+
+// Channel the message/connection/preference applies to. SMS is the only one
+// wired today, but the enum leaves room for the roadmap (email/voice/social).
+export const commChannel = pgEnum("comm_channel", ["sms", "email", "voice"]);
+
+// Which integration provider powers a channel connection.
+export const commProvider = pgEnum("comm_provider", ["twilio"]);
+
+// Operational state of a channel connection, surfaced in Admin → Integrations.
+export const connectionStatus = pgEnum("connection_status", [
+  "not_connected",
+  "setup_required",
+  "connected",
+  "action_required",
+  "disconnected",
+]);
+
+// Purpose-specific SMS categories. Automated notifications map 1:1 to the first
+// four; STAFF_CONVERSATION covers staff-authored replies (Phase 2).
+export const commPurpose = pgEnum("comm_purpose", [
+  "job_scheduled",
+  "appointment_reminder",
+  "cleaner_en_route",
+  "job_completed_review",
+  "staff_conversation",
+]);
+
+// Direction of a stored message, relative to the business.
+export const messageDirection = pgEnum("message_direction", ["inbound", "outbound"]);
+
+// Provider-neutral delivery lifecycle. Twilio statuses map into these; a
+// terminal state is never regressed by a stale/out-of-order callback.
+export const messageStatus = pgEnum("message_status", [
+  "queued",
+  "sending",
+  "sent",
+  "delivered",
+  "undelivered",
+  "failed",
+  "received", // inbound
+  "suppressed", // blocked by consent/policy before submission
+]);
+
+// Effective consent state for a (customer, purpose). Mirrors the spec taxonomy.
+export const commConsentStatus = pgEnum("comm_consent_status", [
+  "opted_in",
+  "opted_out",
+  "unknown",
+  "provider_blocked",
+]);
+
+// Lifecycle of a scheduled (future-dated) communication, e.g. the 24h reminder.
+export const scheduledCommStatus = pgEnum("scheduled_comm_status", [
+  "pending",
+  "processing",
+  "sent",
+  "cancelled",
+  "suppressed",
+  "failed",
+]);
+
+// ─────────────── Channel connections (Admin → Integrations) ───────────────
+// One active connection per (tenant, provider, channel) for the MVP. The raw
+// Twilio Auth Token is NEVER stored here — only a reference to where the secret
+// lives (env var name today, Secrets Manager ARN later). Everything in this
+// table is safe to return to an admin UI.
+export const channelConnections = pgTable(
+  "channel_connections",
+  {
+    id: pk(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    provider: commProvider("provider").notNull().default("twilio"),
+    channel: commChannel("channel").notNull().default("sms"),
+    status: connectionStatus("status").notNull().default("not_connected"),
+    // Twilio Account SID (safe to display, abbreviated in UI).
+    accountSid: text("account_sid"),
+    // Preferred sender: a Messaging Service SID; fall back to a from-number.
+    messagingServiceSid: text("messaging_service_sid"),
+    fromNumber: text("from_number"),
+    // Reference to the auth credential (env var name / secret ARN), not the value.
+    credentialRef: text("credential_ref"),
+    // Business-level fields used to render templates / compliance.
+    businessName: text("business_name"),
+    businessPhone: text("business_phone"),
+    reviewUrl: text("review_url"),
+    lastValidatedAt: timestamp("last_validated_at", { withTimezone: true }),
+    lastInboundAt: timestamp("last_inbound_at", { withTimezone: true }),
+    lastCallbackAt: timestamp("last_callback_at", { withTimezone: true }),
+    lastError: text("last_error"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    disconnectedAt: timestamp("disconnected_at", { withTimezone: true }),
+  },
+  (t) => ({
+    oneActivePerChannel: uniqueIndex("channel_connections_tenant_provider_channel_uq").on(
+      t.tenantId,
+      t.provider,
+      t.channel,
+    ),
+  }),
+);
+
+// ─────────────── Notification settings (per purpose, per tenant) ───────────────
+// Admin toggles each of the four automated notifications on/off and selects the
+// template body. Kept intentionally simple (no workflow builder) per the spec.
+export const smsNotificationSettings = pgTable(
+  "sms_notification_settings",
+  {
+    id: pk(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    purpose: commPurpose("purpose").notNull(),
+    enabled: boolean("enabled").notNull().default(true),
+    // Template body with {{handlebars}}-style variables; rendered at send time
+    // and the rendered copy is stored on the message for accurate history.
+    templateBody: text("template_body").notNull().default(""),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => ({
+    onePerPurpose: uniqueIndex("sms_notification_settings_tenant_purpose_uq").on(
+      t.tenantId,
+      t.purpose,
+    ),
+  }),
+);
+
+// ─────────────── Customer communication preferences (consent) ───────────────
+// Purpose-specific consent, so a customer can allow reminders but opt out of
+// review requests. This layers on top of customer_contacts consent columns and
+// is the authoritative per-purpose record checked at dispatch time.
+export const customerCommPreferences = pgTable(
+  "customer_comm_preferences",
+  {
+    id: pk(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    customerId: uuid("customer_id")
+      .notNull()
+      .references(() => customers.id),
+    // Normalized E.164 target. Nullable so a preference can be customer-wide.
+    phoneE164: text("phone_e164"),
+    channel: commChannel("channel").notNull().default("sms"),
+    purpose: commPurpose("purpose").notNull(),
+    status: commConsentStatus("status").notNull().default("unknown"),
+    source: text("source"), // web form, staff, inbound keyword, import, …
+    capturedAt: timestamp("captured_at", { withTimezone: true }),
+    capturedBy: text("captured_by"),
+    // Provider-level suppression (e.g. Twilio STOP). Authoritative over UI.
+    providerStatus: text("provider_status"),
+    providerSyncedAt: timestamp("provider_synced_at", { withTimezone: true }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => ({
+    onePerPurpose: uniqueIndex("customer_comm_preferences_uq").on(
+      t.tenantId,
+      t.customerId,
+      t.channel,
+      t.purpose,
+    ),
+    byCustomer: index("customer_comm_preferences_customer_idx").on(t.customerId),
+  }),
+);
+
+// ─────────────── Conversations (channel-agnostic, Pathways-owned) ───────────────
+// The authoritative conversation record. SMS keys a conversation by tenant +
+// channel + connection + customer phone; social channels will use the provider
+// thread id. Provider identifiers are metadata, never the primary key — so the
+// conversation history survives a provider change (ADR-001/002).
+export const conversationStatus = pgEnum("conversation_status", [
+  "open",
+  "pending",
+  "closed",
+  "archived",
+]);
+export const conversations = pgTable(
+  "conversations",
+  {
+    id: pk(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    customerId: uuid("customer_id").references(() => customers.id),
+    channel: commChannel("channel").notNull().default("sms"),
+    channelConnectionId: uuid("channel_connection_id").references(() => channelConnections.id),
+    // Deterministic Pathways conversation key (e.g. the customer E.164 for SMS).
+    conversationKey: text("conversation_key").notNull(),
+    // Provider thread id when the channel exposes one (social channels).
+    providerConversationId: text("provider_conversation_id"),
+    status: conversationStatus("status").notNull().default("open"),
+    assignedUserId: text("assigned_user_id"),
+    lastMessageAt: timestamp("last_message_at", { withTimezone: true }),
+    lastMessagePreview: text("last_message_preview"),
+    unreadCount: integer("unread_count").notNull().default(0),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+  },
+  (t) => ({
+    // One conversation per (tenant, channel, connection, key).
+    keyUq: uniqueIndex("conversations_key_uq").on(
+      t.tenantId,
+      t.channel,
+      t.channelConnectionId,
+      t.conversationKey,
+    ),
+    byCustomer: index("conversations_customer_idx").on(t.customerId, t.lastMessageAt),
+    byTenant: index("conversations_tenant_idx").on(t.tenantId, t.lastMessageAt),
+  }),
+);
+
+// ─────────────── Conversation participants ───────────────
+export const participantType = pgEnum("participant_type", [
+  "customer",
+  "business",
+  "staff",
+  "system",
+]);
+export const conversationParticipants = pgTable(
+  "conversation_participants",
+  {
+    id: pk(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    conversationId: uuid("conversation_id")
+      .notNull()
+      .references(() => conversations.id),
+    participantType: participantType("participant_type").notNull(),
+    customerId: uuid("customer_id").references(() => customers.id),
+    staffUserId: text("staff_user_id"),
+    providerUserId: text("provider_user_id"),
+    displayName: text("display_name"),
+    createdAt: createdAt(),
+  },
+  (t) => ({
+    byConversation: index("conversation_participants_conversation_idx").on(t.conversationId),
+  }),
+);
+
+// ─────────────── Messages (shared inbound/outbound message store) ───────────────
+// One row per SMS, inbound or outbound. Provider SID gives idempotency for
+// inbound + status callbacks; idempotencyKey dedupes outbound lifecycle sends.
+export const smsMessages = pgTable(
+  "sms_messages",
+  {
+    id: pk(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    conversationId: uuid("conversation_id").references(() => conversations.id),
+    customerId: uuid("customer_id").references(() => customers.id),
+    jobId: uuid("job_id").references(() => jobs.id),
+    channel: commChannel("channel").notNull().default("sms"),
+    direction: messageDirection("direction").notNull(),
+    purpose: commPurpose("purpose"),
+    status: messageStatus("status").notNull(),
+    fromNumber: text("from_number"),
+    toNumber: text("to_number"),
+    body: text("body").notNull().default(""),
+    // Provider message SID (Twilio "SM..."). Unique per tenant when present.
+    providerSid: text("provider_sid"),
+    providerErrorCode: text("provider_error_code"),
+    errorDetail: text("error_detail"),
+    // Dedupe key for lifecycle-triggered outbound sends (purpose + job + version).
+    idempotencyKey: text("idempotency_key"),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    failedAt: timestamp("failed_at", { withTimezone: true }),
+    receivedAt: timestamp("received_at", { withTimezone: true }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => ({
+    byCustomer: index("sms_messages_customer_idx").on(t.customerId, t.createdAt),
+    byConversation: index("sms_messages_conversation_idx").on(t.conversationId, t.createdAt),
+    byJob: index("sms_messages_job_idx").on(t.jobId),
+    providerSidUq: uniqueIndex("sms_messages_provider_sid_uq")
+      .on(t.tenantId, t.providerSid)
+      .where(sql`${t.providerSid} IS NOT NULL`),
+    idempotencyUq: uniqueIndex("sms_messages_idempotency_uq")
+      .on(t.tenantId, t.idempotencyKey)
+      .where(sql`${t.idempotencyKey} IS NOT NULL`),
+  }),
+);
+
+// ─────────────── Scheduled communications (future-dated sends) ───────────────
+// Backs the 24-hour reminder. A worker claims PENDING rows whose scheduled_for
+// has passed, re-checks the job schedule version + consent, and dispatches.
+export const scheduledCommunications = pgTable(
+  "scheduled_communications",
+  {
+    id: pk(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    customerId: uuid("customer_id")
+      .notNull()
+      .references(() => customers.id),
+    jobId: uuid("job_id").references(() => jobs.id),
+    purpose: commPurpose("purpose").notNull(),
+    scheduledFor: timestamp("scheduled_for", { withTimezone: true }).notNull(),
+    status: scheduledCommStatus("status").notNull().default("pending"),
+    idempotencyKey: text("idempotency_key").notNull(),
+    // The job schedule "version" captured when scheduled; a worker skips the
+    // send if the job's current version no longer matches (rescheduled/cancelled).
+    scheduleVersion: text("schedule_version"),
+    messageId: uuid("message_id").references(() => smsMessages.id),
+    lastError: text("last_error"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => ({
+    byDue: index("scheduled_communications_due_idx").on(t.status, t.scheduledFor),
+    idempotencyUq: uniqueIndex("scheduled_communications_idempotency_uq").on(
+      t.tenantId,
+      t.idempotencyKey,
+    ),
+  }),
+);
+
+// ─────────────── Audit events (integration + comms actions) ───────────────
+// A durable, tenant-scoped record of sensitive comms actions (connection
+// changes, preference changes, message sends/suppressions). Message bodies are
+// not duplicated here; a reference to the message is kept instead.
+export const commAuditEvents = pgTable(
+  "comm_audit_events",
+  {
+    id: pk(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    action: text("action").notNull(),
+    actor: text("actor"),
+    customerId: uuid("customer_id").references(() => customers.id),
+    messageId: uuid("message_id").references(() => smsMessages.id),
+    detail: jsonb("detail").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: createdAt(),
+  },
+  (t) => ({
+    byTenant: index("comm_audit_events_tenant_idx").on(t.tenantId, t.createdAt),
   }),
 );
