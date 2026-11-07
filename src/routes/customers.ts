@@ -9,12 +9,67 @@ import {
   PlanCreate,
   QuoteCreate,
   JobCreate,
+  JobUpdate,
   ReviewCreate,
   AppointmentCreate,
   InteractionCreate,
 } from "../domain/crm.js";
+import type { NotificationTrigger, JobForNotification, CustomerForNotification } from "../comms/notifications.js";
+import type { Job } from "../domain/crm.js";
 
-export function customerRoutes(repo: Repository) {
+/**
+ * Fire-and-persist SMS lifecycle notifications off a job write. Errors are
+ * swallowed (and logged by the service) so SMS never blocks a job update — a
+ * Twilio outage must not stop a job from being created/updated (spec §13).
+ */
+async function notifyJobChange(
+  repo: Repository,
+  trigger: NotificationTrigger,
+  customerId: string,
+  job: Job,
+  event: "created" | "status",
+  previousStatus?: string,
+): Promise<void> {
+  const full = await repo.getCustomer(customerId);
+  if (!full) return;
+  const customer: CustomerForNotification = { id: full.id, firstName: null, displayName: full.name };
+  const jobN: JobForNotification = {
+    id: job.id,
+    customerId: full.id,
+    status: job.status,
+    scheduledStart: job.scheduledStart ?? null,
+  };
+  try {
+    if (event === "created") {
+      if (job.status === "scheduled") await trigger.onJobScheduled(customer, jobN);
+      return;
+    }
+    // Status transition — only act when the status actually changed.
+    if (job.status === previousStatus) {
+      // A reschedule (same status, new time) still updates the reminder.
+      if (job.status === "scheduled") await trigger.enqueueReminder(customer, jobN);
+      return;
+    }
+    switch (job.status) {
+      case "scheduled":
+        await trigger.onJobScheduled(customer, jobN);
+        break;
+      case "en-route":
+        await trigger.onCleanerEnRoute(customer, jobN);
+        break;
+      case "completed":
+        await trigger.onJobCompleted(customer, jobN);
+        break;
+      case "cancelled":
+        await trigger.onJobCancelled(jobN);
+        break;
+    }
+  } catch {
+    /* SMS failures must not break the job write; service logs the detail. */
+  }
+}
+
+export function customerRoutes(repo: Repository, trigger: NotificationTrigger) {
   return async function (app: FastifyInstance) {
     // ── List / detail ──
     app.get("/customers", async () => {
@@ -102,8 +157,30 @@ export function customerRoutes(repo: Repository) {
       const input = parseBody(JobCreate, req.body, reply);
       if (!input) return;
       const created = await repo.createJob(req.params.id, input);
-      return created ? reply.code(201).send(created) : notFound(reply);
+      if (!created) return notFound(reply);
+      await notifyJobChange(repo, trigger, req.params.id, created, "created");
+      return reply.code(201).send(created);
     });
+
+    // Update a job (status / schedule). Status transitions drive SMS:
+    // en-route → "cleaner en route", completed → "review request",
+    // cancelled → cancel pending reminders, (re)scheduled → reminder recompute.
+    app.patch<{ Params: { id: string; jobId: string } }>(
+      "/customers/:id/jobs/:jobId",
+      async (req, reply) => {
+        const input = parseBody(JobUpdate, req.body, reply);
+        if (!input) return;
+        // Capture the prior status so we only notify on a real transition.
+        const before = await repo.getCustomer(req.params.id);
+        const prev = before?.jobs.find((j) => j.id === req.params.jobId)?.status;
+        const updated = await repo.updateJob(req.params.id, req.params.jobId, input);
+        if (!updated) {
+          return reply.code(404).send({ error: "not_found", message: "Customer or job not found" });
+        }
+        await notifyJobChange(repo, trigger, req.params.id, updated, "status", prev);
+        return updated;
+      },
+    );
 
     app.post<{ Params: { id: string; jobId: string } }>(
       "/customers/:id/jobs/:jobId/review",

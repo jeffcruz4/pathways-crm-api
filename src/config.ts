@@ -37,6 +37,17 @@ const ConfigSchema = z.object({
    * to the local dev origin.
    */
   CORS_ORIGINS: z.string().default("http://localhost:5173"),
+
+  // ── Twilio SMS integration ──
+  /** Twilio Auth Token (secret). Read from env; never persisted or returned. */
+  TWILIO_AUTH_TOKEN: z.string().optional(),
+  /** Public base URL used to render webhook setup instructions in the admin UI. */
+  PUBLIC_BASE_URL: z.string().optional(),
+  /** Dev-only escape hatch to skip Twilio webhook signature validation. */
+  TWILIO_SKIP_SIGNATURE_VALIDATION: z
+    .enum(["true", "false"]) 
+    .default("false")
+    .transform((v) => v === "true"),
 });
 
 export type AppConfig = {
@@ -46,6 +57,9 @@ export type AppConfig = {
   dataBackend: "memory" | "postgres";
   databaseUrl?: string;
   corsOrigins: string[];
+  twilioAuthToken?: string;
+  publicBaseUrl?: string;
+  twilioSkipSignatureValidation: boolean;
 };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -68,5 +82,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     dataBackend: c.DATA_BACKEND,
     databaseUrl: c.DATABASE_URL,
     corsOrigins: c.CORS_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean),
+    twilioAuthToken: c.TWILIO_AUTH_TOKEN,
+    publicBaseUrl: c.PUBLIC_BASE_URL,
+    twilioSkipSignatureValidation: c.TWILIO_SKIP_SIGNATURE_VALIDATION,
   };
 }

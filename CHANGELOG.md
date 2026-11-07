@@ -6,6 +6,95 @@ newest first. PR numbers reference `jeffcruz4/pathways-crm-api`.
 
 ---
 
+## Unreleased — Unified inbox (backend)
+
+### Added
+- **Tenant-wide conversation reads + staff reply**, backing the native unified
+  inbox. New `CommsRepository` methods: `listInboxConversations(filter)` (with
+  status/unread/unmatched/channel/search filters + resolved customer names),
+  `getConversationView(id)` (conversation + chronological messages),
+  `markConversationRead(id)`, `associateConversationCustomer(id, customerId)`
+  (links an unmatched conversation and backfills the customer on its messages),
+  and `getConversationDispatchInfo(id)`.
+- **Staff reply** (`CommsService.sendReply`, SMS-FR-022): sends on the
+  conversation's channel to its counterparty with the `staff_conversation`
+  purpose, through the same dispatch-time consent/suppression path. Replying to
+  an unmatched conversation is refused until it's associated with a customer.
+- **Routes**: `GET /inbox/conversations`, `GET /inbox/conversations/:id`,
+  `POST /inbox/conversations/:id/read`, `POST /inbox/conversations/:id/messages`
+  (reply), `POST /inbox/conversations/:id/associate-customer`. Namespaced under
+  `/inbox` so they don't collide with the existing demo `/conversations` route.
+
+### Fixed
+- Inbox query-string booleans (`unread`/`unmatched`) now parse `"false"`
+  correctly instead of coercing any non-empty string to true.
+
+---
+
+## Unreleased — Communications core refactor (Conversation layer + provider adapters)
+
+Aligns the SMS feature with the Unified Communications architecture direction
+(Pathways is the system of record; providers are interchangeable transport).
+
+### Added
+- **Conversation layer** (`conversations` + `conversation_participants`, migration
+  `0008_*`): a channel-agnostic, Pathways-owned conversation record. Every SMS
+  message now carries a `conversation_id`; SMS conversations are keyed
+  deterministically by tenant + channel + connection + customer phone. Provider
+  thread ids are stored as metadata, never as the primary key. Inbound replies
+  thread into the same conversation and increment an unread counter.
+- **Provider adapter contract** (`CommunicationProviderAdapter`): a provider-neutral
+  interface (`validateConnection`, `getCapabilities`, `sendMessage`,
+  `validateWebhook`, `normalizeInboundWebhook`) plus a `ChannelCapabilities`
+  model (sets up the Facebook customer-initiated / 24h-window path). Twilio is
+  now the first implementation behind this interface.
+- **ChannelRouter**: selects an adapter by provider+channel and resolves the
+  connection's sending context + credential (credential resolution moved out of
+  the core and behind the router). Adding a channel = register an adapter.
+- New `GET /customers/:id/conversations` (feeds the future unified inbox).
+
+### Changed
+- `CommsService` no longer imports Twilio functions directly — it dispatches via
+  the router/adapter and normalizes inbound webhooks through the adapter's event
+  model. Inbound normalization/persistence works even when sending isn't
+  configured, so a valid inbound message is never discarded.
+
+---
+
+## Unreleased — Unified Communications: Twilio SMS (MVP)
+
+### Added
+- **Twilio SMS integration** implementing the Twilio SMS feature spec (MVP /
+  Milestones 1–4). A provider-neutral communications layer with a Twilio adapter
+  behind it, so email/voice/social channels can be added later.
+- **New tables** (migration `0007_*`): `channel_connections` (Twilio config;
+  Auth Token stored only as a secret *reference*, never raw), `sms_messages`
+  (shared inbound/outbound store with provider SID + idempotency), `customer_comm_preferences`
+  (purpose-specific consent), `sms_notification_settings` (per-purpose template +
+  on/off), `scheduled_communications` (24h reminder queue), and `comm_audit_events`.
+  Added `en-route` to the `job_status` enum.
+- **Automated notifications** on job lifecycle: job scheduled (confirmation +
+  24h reminder enqueue), cleaner en route, job completed (review request). Each
+  send is idempotent (one message per job + purpose + schedule version); a
+  Twilio outage never blocks a job write.
+- **24-hour reminder scheduler** — an in-process tick worker that claims due
+  reminders, re-verifies the job's schedule version + consent, and dispatches.
+  Rescheduling recomputes the reminder; cancelling a job cancels pending sends.
+- **Consent enforcement at dispatch time**: purpose enablement, per-purpose
+  customer consent, and carrier-level suppression are all checked immediately
+  before sending; suppressed sends are still recorded with a reason.
+- **Webhooks**: inbound SMS (persist + customer association by E.164 +
+  STOP/START/HELP keyword handling) and delivery status callbacks (idempotent,
+  non-regressing), with Twilio request-signature validation.
+- **Routes**: `GET/PUT /integrations/twilio`, `POST /integrations/twilio/{validate,disconnect,test}`,
+  `PATCH /integrations/twilio/settings/:purpose`, `GET /customers/:id/messages`,
+  `GET/PUT /customers/:id/comm-preferences`, `PATCH /customers/:id/jobs/:jobId`,
+  and `POST /webhooks/twilio/{inbound,status}`.
+- **Config**: `TWILIO_AUTH_TOKEN`, `PUBLIC_BASE_URL`, `TWILIO_SKIP_SIGNATURE_VALIDATION`
+  (dev-only) added to the env schema and `.env.example`.
+
+---
+
 ## Phase 2 — Postgres backend + dedicated RDS
 
 ### Added
