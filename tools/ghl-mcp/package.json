@@ -1,0 +1,16 @@
+{
+  "name": "pathways-ghl-mcp-shim",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local, read-only GoHighLevel MCP shim for the Pathways migration OPEN-1 custom-objects investigation. No third-party code in the token path beyond the official MCP SDK. GET-only by construction.",
+  "bin": {
+    "pathways-ghl-mcp": "server.mjs"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2"
+  }
+}

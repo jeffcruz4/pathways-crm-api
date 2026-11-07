@@ -48,6 +48,28 @@ const ConfigSchema = z.object({
     .enum(["true", "false"]) 
     .default("false")
     .transform((v) => v === "true"),
+
+  // ── GoHighLevel (LeadConnector) SMS integration — Phase 1 ──
+  // VERIFY-ON-SANDBOX: the GHL send/webhook wire details behind these are not
+  // yet live-validated (no sandbox on the current plan). See
+  // docs/design/gohighlevel-adapter-sketch.ts and OPEN-6/OPEN-12.
+  /** GHL access credential (Private Integration Token or OAuth access token). Secret; never persisted/returned. */
+  GHL_TOKEN: z.string().optional(),
+  /** GHL sub-account (location) id. Every GHL request is location-scoped. */
+  GHL_LOCATION_ID: z.string().optional(),
+  /** GHL date-versioned API header value. */
+  GHL_API_VERSION: z.string().default("2021-07-28"),
+  /** GHL webhook shared secret used to verify inbound/status webhook authenticity. */
+  GHL_WEBHOOK_SECRET: z.string().optional(),
+  /**
+   * Provider-neutral dev-only escape hatch to skip webhook signature
+   * validation (supersedes TWILIO_SKIP_SIGNATURE_VALIDATION, which still works
+   * for back-compat). Applies to any provider's webhooks.
+   */
+  SKIP_WEBHOOK_SIGNATURE_VALIDATION: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
 });
 
 export type AppConfig = {
@@ -60,6 +82,16 @@ export type AppConfig = {
   twilioAuthToken?: string;
   publicBaseUrl?: string;
   twilioSkipSignatureValidation: boolean;
+  // GoHighLevel (Phase 1)
+  ghlToken?: string;
+  ghlLocationId?: string;
+  ghlApiVersion: string;
+  ghlWebhookSecret?: string;
+  /**
+   * Effective "skip webhook signature validation" flag — true if EITHER the
+   * provider-neutral flag OR the legacy Twilio-specific flag is set. Dev only.
+   */
+  skipWebhookSignatureValidation: boolean;
 };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -85,5 +117,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     twilioAuthToken: c.TWILIO_AUTH_TOKEN,
     publicBaseUrl: c.PUBLIC_BASE_URL,
     twilioSkipSignatureValidation: c.TWILIO_SKIP_SIGNATURE_VALIDATION,
+    ghlToken: c.GHL_TOKEN,
+    ghlLocationId: c.GHL_LOCATION_ID,
+    ghlApiVersion: c.GHL_API_VERSION,
+    ghlWebhookSecret: c.GHL_WEBHOOK_SECRET,
+    skipWebhookSignatureValidation:
+      c.SKIP_WEBHOOK_SIGNATURE_VALIDATION || c.TWILIO_SKIP_SIGNATURE_VALIDATION,
   };
 }

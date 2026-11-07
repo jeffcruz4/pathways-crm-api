@@ -613,7 +613,7 @@ export const tasks = pgTable(
 export const commChannel = pgEnum("comm_channel", ["sms", "email", "voice"]);
 
 // Which integration provider powers a channel connection.
-export const commProvider = pgEnum("comm_provider", ["twilio"]);
+export const commProvider = pgEnum("comm_provider", ["twilio", "gohighlevel"]);
 
 // Operational state of a channel connection, surfaced in Admin → Integrations.
 export const connectionStatus = pgEnum("connection_status", [

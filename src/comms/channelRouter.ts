@@ -10,6 +10,7 @@ import type { AppConfig } from "../config.js";
 import type { IntegrationConnection, CommProvider, CommChannel } from "../domain/comms.js";
 import type { CommunicationProviderAdapter, ResolvedConnection } from "./adapter.js";
 import { TwilioAdapter } from "./twilioAdapter.js";
+import { GoHighLevelAdapter } from "./gohighlevelAdapter.js";
 
 type AdapterKey = `${CommProvider}:${CommChannel}`;
 
@@ -19,6 +20,12 @@ export class ChannelRouter {
   constructor(private readonly config: AppConfig) {
     const twilio = new TwilioAdapter();
     this.adapters.set(`${twilio.provider}:${twilio.channel}`, twilio);
+
+    // GoHighLevel SMS (Phase 1). The adapter is fenced (see its header) so
+    // registering it is safe: it cannot send until GHL_SEND_ENABLED=true and
+    // fails webhook verification closed until the scheme is confirmed.
+    const ghl = new GoHighLevelAdapter();
+    this.adapters.set(`${ghl.provider}:${ghl.channel}`, ghl);
   }
 
   /** The adapter for a provider+channel pair, or undefined if unsupported. */
@@ -69,7 +76,9 @@ export class ChannelRouter {
     if (!credentialRef) return undefined;
     if (credentialRef.startsWith("env:")) {
       const name = credentialRef.slice(4);
+      // Known secrets mapped from typed config; anything else falls back to env.
       if (name === "TWILIO_AUTH_TOKEN") return this.config.twilioAuthToken;
+      if (name === "GHL_TOKEN") return this.config.ghlToken;
       return process.env[name];
     }
     // Future: secret-manager://arn resolution for multi-tenant onboarding.

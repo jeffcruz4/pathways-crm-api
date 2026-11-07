@@ -201,5 +201,58 @@ export function commsRoutes(repo: Repository, config: AppConfig, comms: CommsSer
       await comms.handleStatusCallback(params);
       return reply.code(204).send();
     });
+
+    // ── GoHighLevel webhooks (Phase 1) ──
+    // GHL posts application/json (unlike Twilio's form-encoded). Flatten the
+    // (possibly nested) JSON into a Record<string,string> so the shared core +
+    // adapter read params uniformly, and carry the raw body (__rawBody) so the
+    // adapter can verify the signature over exact bytes.
+    //
+    // VERIFY-ON-SANDBOX: GHL's inbound/status payload shape, signature header,
+    // and expected ack are not yet live-confirmed (OPEN-6/OPEN-12). The adapter
+    // fails webhook verification closed until the scheme is confirmed, so these
+    // routes are safe to register but will reject real webhooks until then
+    // (unless the dev skip flag is set).
+    const flattenGhl = (body: unknown, raw: string): Record<string, string> => {
+      const out: Record<string, string> = { __rawBody: raw };
+      const walk = (obj: unknown, prefix = "") => {
+        if (obj && typeof obj === "object" && !Array.isArray(obj)) {
+          for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+            const key = prefix ? `${prefix}.${k}` : k;
+            if (v && typeof v === "object" && !Array.isArray(v)) walk(v, key);
+            else if (v != null) out[key] = String(v);
+            // Also surface top-level keys unprefixed for the adapter's reads
+            // (e.g. body/from/to/messageId), preferring the shallowest.
+            if (!prefix && (typeof v !== "object" || v === null) && v != null && !(k in out)) {
+              out[k] = String(v);
+            }
+          }
+        }
+      };
+      if (body && typeof body === "object") walk(body);
+      return out;
+    };
+
+    app.post("/webhooks/gohighlevel/inbound", async (req, reply) => {
+      // req.body is a parsed object (default JSON parser). Raw bytes aren't
+      // available here yet — see the note in app.ts; the adapter fails
+      // verification closed until a raw-body plugin + the real scheme land.
+      const parsed = (req.body ?? {}) as Record<string, unknown>;
+      const params = flattenGhl(parsed, JSON.stringify(parsed));
+      const ok = await comms.verifyWebhook(reconstructUrl(req), headersOf(req), params);
+      if (!ok) return reply.code(403).send({ error: "invalid_signature" });
+      await comms.handleInbound(params);
+      // GHL does not expect TwiML; a 204 ack is sufficient. VERIFY-ON-SANDBOX.
+      return reply.code(204).send();
+    });
+
+    app.post("/webhooks/gohighlevel/status", async (req, reply) => {
+      const parsed = (req.body ?? {}) as Record<string, unknown>;
+      const params = flattenGhl(parsed, JSON.stringify(parsed));
+      const ok = await comms.verifyWebhook(reconstructUrl(req), headersOf(req), params);
+      if (!ok) return reply.code(403).send({ error: "invalid_signature" });
+      await comms.handleStatusCallback(params);
+      return reply.code(204).send();
+    });
   };
 }

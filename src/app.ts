@@ -55,6 +55,16 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
     },
   );
 
+  // NOTE (GoHighLevel webhooks, Phase 1): GHL posts application/json and signs
+  // the raw body. Fastify's default JSON parser discards the raw bytes, so
+  // byte-exact signature verification is NOT available here yet — the GHL
+  // webhook routes reconstruct an approximate body and the adapter fails
+  // signature verification CLOSED until the real scheme is confirmed on a
+  // sandbox (OPEN-6/OPEN-12). When implementing real verification, add a
+  // raw-body plugin (e.g. fastify-raw-body) SCOPED to the GHL webhook routes so
+  // the rest of the API keeps the default parsed-object JSON behavior. Do NOT
+  // replace the global JSON parser — every existing route relies on it.
+
   const repo = createRepository(config);
 
   // ── Unified Communications (Twilio SMS) wiring ──
